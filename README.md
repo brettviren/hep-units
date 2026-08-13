@@ -1,14 +1,14 @@
-# dune-units
+# hep-units
 
-The CLHEP **HEP System of Units** (plus DUNE-local additions and constants of
-nature) provided as three interchangeable products generated from a single
-source of truth:
+The CLHEP **HEP System of Units** — plus local additions (units not in CLHEP)
+and constants of nature — provided as three interchangeable products generated
+from a single source of truth:
 
 | Product | File | Consume as |
 | ------- | ---- | ---------- |
-| C++ header | `include/dune/units.hpp` | `#include "dune/units.hpp"` → `dune::units::cm`, `dune::units::parse(...)` |
-| Python module | `src/dune_units/__init__.py` | `import dune_units as u` → `u.cm`, `u.parse(...)` |
-| Jsonnet library | `jsonnet/dune/units.libsonnet` | `local u = import 'dune/units.libsonnet';` → `u.cm`, `u.parse(...)` |
+| C++ header | `include/hep/units.hpp` | `#include "hep/units.hpp"` → `hep::units::cm`, `hep::units::parse(...)` |
+| Python module | `src/hep_units/__init__.py` | `import hep_units as u` → `u.cm`, `u.parse(...)` |
+| Jsonnet library | `jsonnet/hep/units.libsonnet` | `local u = import 'hep/units.libsonnet';` → `u.cm`, `u.parse(...)` |
 
 All three carry identical numeric values (IEEE-754 doubles, verified
 bit-for-bit) and the same set of 166 named symbols, so a length written as
@@ -30,7 +30,7 @@ The values live in human-editable `.units` files under `units/`:
   [`CLHEP/Units/SystemOfUnits.h`](https://github.com/Geant4/geant4/blob/master/source/externals/clhep/include/CLHEP/Units/SystemOfUnits.h).
   **Do not edit** — it is meant to mirror CLHEP exactly.
 
-- **`units/dune.units`** — the place to add units CLHEP does not provide and any
+- **`units/hep.units`** — the place to add units CLHEP does not provide and any
   constants of nature. It is consumed *after* `clhep.units`, so it may reference
   any CLHEP symbol.
 
@@ -111,17 +111,17 @@ cmake --install build
 Installs:
 
 ```
-<prefix>/include/dune/units.hpp
-<prefix>/python/dune_units/__init__.py          # add <prefix>/python to PYTHONPATH
-<prefix>/share/jsonnet/dune/units.libsonnet     # add <prefix>/share/jsonnet to -J path
-<prefix>/lib/cmake/dune_units/…                 # find_package(dune_units)
+<prefix>/include/hep/units.hpp
+<prefix>/python/hep_units/__init__.py          # add <prefix>/python to PYTHONPATH
+<prefix>/share/jsonnet/hep/units.libsonnet     # add <prefix>/share/jsonnet to -J path
+<prefix>/lib/cmake/hep_units/…                 # find_package(hep_units)
 ```
 
 Downstream C++:
 
 ```cmake
-find_package(dune_units REQUIRED)
-target_link_libraries(myapp PRIVATE dune_units::dune_units)
+find_package(hep_units REQUIRED)
+target_link_libraries(myapp PRIVATE hep_units::hep_units)
 ```
 
 ### pyproject.toml (Python module only)
@@ -130,19 +130,26 @@ A parallel, packaging-native install of the same single Python file:
 
 ```bash
 pip install .          # or: uv tool install -e .
-python -c "import dune_units as u; print(u.parse('1.6 mm/us'))"
+python -c "import hep_units as u; print(u.parse('1.6 mm/us'))"
 ```
 
 ## Layout
 
 ```
 units/clhep.units             source of truth: CLHEP SystemOfUnits.h (frozen)
-units/dune.units              source of truth: extra units + constants of nature
+units/hep.units               source of truth: extra units + constants of nature
 generate/generate.py          the source-code generator (developer tool)
-include/dune/units.hpp         GENERATED C++ header
-src/dune_units/__init__.py     GENERATED Python module
-jsonnet/dune/units.libsonnet   GENERATED Jsonnet library
+include/hep/units.hpp         GENERATED C++ header
+src/hep_units/__init__.py     GENERATED Python module
+jsonnet/hep/units.libsonnet   GENERATED Jsonnet library
 CMakeLists.txt                 build/install for all three products
 pyproject.toml                 parallel Python install
 test/                          C++, Python and Jsonnet checks (ctest + pytest)
 ```
+
+## License
+
+Copyright (c) 2026, Brookhaven Science Associates, LLC.
+Licensed under the Apache License, Version 2.0 (SPDX: `Apache-2.0`); see the
+[LICENSE](LICENSE) file. The `units/clhep.units` source transcribes CLHEP's
+`SystemOfUnits.h` (CLHEP is itself distributed under a permissive HEP license).

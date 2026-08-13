@@ -1,6 +1,8 @@
+// Copyright (c) 2026, Brookhaven Science Associates, LLC
+// SPDX-License-Identifier: Apache-2.0
 // Sanity checks for the generated Jsonnet library.
 // Evaluates to "ok" when all assertions pass; errors otherwise.
-local u = import 'dune/units.libsonnet';
+local u = import 'hep/units.libsonnet';
 
 local close(a, b) = std.abs(a - b) <= 1e-9 * (1.0 + std.abs(b));
 

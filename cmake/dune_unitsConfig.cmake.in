@@ -1,7 +1,0 @@
-@PACKAGE_INIT@
-
-# dune_units: header-only C++ system-of-units library.
-# Target: dune_units::dune_units
-# No dependencies (standard library only).
-
-include("${CMAKE_CURRENT_LIST_DIR}/dune_unitsTargets.cmake")

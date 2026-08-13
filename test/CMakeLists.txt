@@ -1,6 +1,8 @@
+# Copyright (c) 2026, Brookhaven Science Associates, LLC
+# SPDX-License-Identifier: Apache-2.0
 # C++ test of the generated header.
 add_executable(test_units test_units.cpp)
-target_link_libraries(test_units PRIVATE dune_units::dune_units)
+target_link_libraries(test_units PRIVATE hep_units::hep_units)
 target_compile_options(test_units PRIVATE -Wall -Wpedantic -Werror)
 add_test(NAME cpp_units COMMAND test_units)
 

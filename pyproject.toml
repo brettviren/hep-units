@@ -1,5 +1,5 @@
 [project]
-name = "dune-units"
+name = "hep-units"
 version = "0.1.0"
 description = "The CLHEP HEP system of units as a C++ header, Python module and Jsonnet library, from a single source of truth"
 readme = "README.md"
@@ -7,6 +7,7 @@ authors = [
     { name = "Brett Viren", email = "brett.viren@gmail.com" }
 ]
 license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 # The generated module and the generator itself use only the standard library.
 dependencies = []

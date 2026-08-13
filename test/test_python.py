@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Brookhaven Science Associates, LLC
+# SPDX-License-Identifier: Apache-2.0
 """Sanity checks for the generated Python module (also runnable under pytest)."""
 
 import math
@@ -7,7 +9,7 @@ from pathlib import Path
 # Allow running against the in-tree source without installing.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-import dune_units as u
+import hep_units as u
 
 
 def test_named_values():

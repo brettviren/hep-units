@@ -1,0 +1,9 @@
+# Copyright (c) 2026, Brookhaven Science Associates, LLC
+# SPDX-License-Identifier: Apache-2.0
+@PACKAGE_INIT@
+
+# hep_units: header-only C++ system-of-units library.
+# Target: hep_units::hep_units
+# No dependencies (standard library only).
+
+include("${CMAKE_CURRENT_LIST_DIR}/hep_unitsTargets.cmake")

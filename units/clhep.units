@@ -1,6 +1,9 @@
 # -*- mode: conf -*-
 #
-# CLHEP "HEP System of Units", translated into the dune-units source-of-truth
+# Copyright (c) 2026, Brookhaven Science Associates, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# CLHEP "HEP System of Units", translated into the hep-units source-of-truth
 # format.  This is a faithful, line-by-line transcription of
 #
 #     CLHEP/Units/SystemOfUnits.h
@@ -18,7 +21,7 @@
 #     candela                 (luminous intensity)
 #
 # INTENT: this file is a mirror of CLHEP and is NOT meant to be edited.  Put new
-# or non-CLHEP units, and any constants of nature, in dune.units instead.
+# or non-CLHEP units, and any constants of nature, in hep.units instead.
 #
 # Format (see ../README.md):
 #   - blank lines and lines starting with '#' are ignored

@@ -1,5 +1,7 @@
+// Copyright (c) 2026, Brookhaven Science Associates, LLC
+// SPDX-License-Identifier: Apache-2.0
 // Basic sanity checks for the generated C++ header.
-#include "dune/units.hpp"
+#include "hep/units.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -18,7 +20,7 @@ static void check_close(const char* what, double got, double want)
 
 int main()
 {
-  using namespace dune::units;
+  using namespace hep::units;
 
   // Named symbols carry the CLHEP values.
   check_close("cm", cm, 10.0);

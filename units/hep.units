@@ -1,6 +1,9 @@
 # -*- mode: conf -*-
 #
-# dune-units local additions to the CLHEP "HEP System of Units".
+# Copyright (c) 2026, Brookhaven Science Associates, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# hep-units local additions to the CLHEP "HEP System of Units".
 #
 # Unlike units/clhep.units (a frozen mirror of CLHEP/Units/SystemOfUnits.h),
 # THIS file is the place to add:
