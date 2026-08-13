@@ -42,6 +42,7 @@ function.
 import ast
 import argparse
 import operator
+import re
 from pathlib import Path
 
 # --------------------------------------------------------------------------
@@ -132,6 +133,89 @@ def parse_sources(paths):
             symbols[name] = value
             records.append(Symbol(name, expr, value, section, kind, path.name))
     return records
+
+
+# --------------------------------------------------------------------------
+# Rendering an expression back to source, referencing prior symbols by name.
+#
+# The generated products keep the *structure* of each definition (e.g. C++
+# `cm2 = cm*cm`) rather than a flattened numeric literal, so a reader sees how
+# the units are built up.  The renderer walks the same AST used for evaluation
+# and prints it with minimal parentheses, which -- because C++, Python and
+# Jsonnet share operator precedence, left-associativity and IEEE-754 `double`
+# semantics -- yields byte-for-byte equivalent arithmetic and therefore
+# identical values in all three languages.
+# --------------------------------------------------------------------------
+
+_PREC = {ast.Add: 1, ast.Sub: 1, ast.Mult: 2, ast.Div: 2}
+_OPSYM = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}
+_UNARY_PREC = 3
+_POW_PREC = 4  # an expanded power is always parenthesized, so treat as atomic
+
+
+def _int_exponent(node):
+    """Return the integer value of a Pow exponent node, or None if not integral."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, int):
+        return node.value
+    if (isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub)
+            and isinstance(node.operand, ast.Constant)
+            and isinstance(node.operand.value, int)):
+        return -node.operand.value
+    return None
+
+
+def _jsonnet_number(tok):
+    """Normalise a C/Python numeric literal token to valid Jsonnet syntax.
+
+    Jsonnet requires a digit on both sides of the decimal point, so `1.` and
+    `1.e-6` (legal in C++/Python) must become `1.0` and `1.0e-6`.
+    """
+    tok = re.sub(r"^\.", "0.", tok)            # .5     -> 0.5
+    tok = re.sub(r"\.(?=[eE]|$)", ".0", tok)   # 1.     -> 1.0 ; 1.e-6 -> 1.0e-6
+    return tok
+
+
+def render_expr(expr, name_fmt, jsonnet=False):
+    """Render source expression ``expr`` with names mapped through ``name_fmt``."""
+    tree = ast.parse(expr, mode="eval").body
+
+    def literal(node):
+        tok = expr[node.col_offset:node.end_col_offset]
+        return _jsonnet_number(tok) if jsonnet else tok
+
+    def rec(node, parent_prec, is_right):
+        if isinstance(node, ast.Constant):
+            return literal(node)
+        if isinstance(node, ast.Name):
+            return name_fmt(node.id)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            operand = rec(node.operand, _UNARY_PREC, False)
+            sign = "-" if isinstance(node.op, ast.USub) else "+"
+            s = sign + operand
+            return f"({s})" if parent_prec > _UNARY_PREC else s
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+            n = _int_exponent(node.right)
+            if n is None:
+                raise ValueError(
+                    f"power in {expr!r}: exponent must be an integer literal "
+                    "(C++ constexpr has no runtime pow); expand it manually")
+            base = rec(node.left, _POW_PREC, False)
+            if n == 0:
+                return "1"
+            if n >= 1:
+                return "(" + " * ".join([base] * n) + ")"
+            return "(1.0 / (" + " * ".join([base] * (-n)) + "))"
+        if isinstance(node, ast.BinOp) and type(node.op) in _PREC:
+            prec = _PREC[type(node.op)]
+            left = rec(node.left, prec, False)
+            right = rec(node.right, prec, True)
+            s = f"{left} {_OPSYM[type(node.op)]} {right}"
+            need = prec < parent_prec or (prec == parent_prec and is_right)
+            return f"({s})" if need else s
+        raise ValueError(f"unsupported expression element in {expr!r}: "
+                         f"{ast.dump(node)}")
+
+    return rec(tree, 0, False)
 
 
 # --------------------------------------------------------------------------
@@ -284,8 +368,9 @@ def emit_cpp(records, sources):
         tag = "" if kind == "unit" else " (constants)"
         out.append(f"// ---- {label}{tag} ----")
         for sym in syms:
-            out.append(f"inline constexpr double {sym.name} = {_num(sym.value)};"
-                       f"  // = {sym.expr}")
+            rhs = render_expr(sym.expr, lambda n: n)
+            out.append(f"inline constexpr double {sym.name} = {rhs};"
+                       f"  // = {_num(sym.value)}")
         out.append("")
     entries = "\n".join(f'    {{"{s.name}", {s.name}}},' for s in records)
     out.append(_CPP_PARSE.strip("\n") % {"entries": entries})
@@ -377,7 +462,8 @@ def emit_python(records, sources):
         tag = "" if kind == "unit" else " (constants)"
         out.append(f"# ---- {label}{tag} ----")
         for sym in syms:
-            out.append(f"{sym.name} = {_num(sym.value)}  # = {sym.expr}")
+            rhs = render_expr(sym.expr, lambda n: n)
+            out.append(f"{sym.name} = {rhs}  # = {_num(sym.value)}")
         out.append("")
     entries = "\n".join(f'    "{s.name}": {s.name},' for s in records)
     out.append(_PY_PARSE.strip("\n") % {"entries": entries})
@@ -453,7 +539,8 @@ def emit_jsonnet(records, sources):
         tag = "" if kind == "unit" else " (constants)"
         out.append(f"  // ---- {label}{tag} ----")
         for sym in syms:
-            out.append(f"  {sym.name}:: {_num(sym.value)},  // = {sym.expr}")
+            rhs = render_expr(sym.expr, lambda n: "self." + n, jsonnet=True)
+            out.append(f"  {sym.name}:: {rhs},  // = {_num(sym.value)}")
         out.append("")
     out.append("  // Names of every symbol (units and constants), in order.")
     out.append("  names:: [")

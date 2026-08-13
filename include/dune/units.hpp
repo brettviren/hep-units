@@ -15,232 +15,232 @@
 namespace dune::units {
 
 // ---- Mathematical constants ----
-inline constexpr double pi = 3.141592653589793;  // = 3.14159265358979323846
-inline constexpr double twopi = 6.283185307179586;  // = 2*pi
-inline constexpr double halfpi = 1.5707963267948966;  // = pi/2
-inline constexpr double pi2 = 9.869604401089358;  // = pi*pi
+inline constexpr double pi = 3.14159265358979323846;  // = 3.141592653589793
+inline constexpr double twopi = 2 * pi;  // = 6.283185307179586
+inline constexpr double halfpi = pi / 2;  // = 1.5707963267948966
+inline constexpr double pi2 = pi * pi;  // = 9.869604401089358
 
 // ---- Length [L] ----
-inline constexpr double millimeter = 1.0;  // = 1.
-inline constexpr double millimeter2 = 1.0;  // = millimeter*millimeter
-inline constexpr double millimeter3 = 1.0;  // = millimeter*millimeter*millimeter
-inline constexpr double centimeter = 10.0;  // = 10.*millimeter
-inline constexpr double centimeter2 = 100.0;  // = centimeter*centimeter
-inline constexpr double centimeter3 = 1000.0;  // = centimeter*centimeter*centimeter
-inline constexpr double meter = 1000.0;  // = 1000.*millimeter
-inline constexpr double meter2 = 1000000.0;  // = meter*meter
-inline constexpr double meter3 = 1000000000.0;  // = meter*meter*meter
-inline constexpr double kilometer = 1000000.0;  // = 1000.*meter
-inline constexpr double kilometer2 = 1000000000000.0;  // = kilometer*kilometer
-inline constexpr double kilometer3 = 1e+18;  // = kilometer*kilometer*kilometer
-inline constexpr double parsec = 3.0856775807e+19;  // = 3.0856775807e+16*meter
-inline constexpr double micrometer = 0.001;  // = 1.e-6 *meter
-inline constexpr double nanometer = 1.0000000000000002e-06;  // = 1.e-9 *meter
-inline constexpr double angstrom = 1.0000000000000001e-07;  // = 1.e-10*meter
-inline constexpr double fermi = 1e-12;  // = 1.e-15*meter
-inline constexpr double barn = 9.999999999999999e-23;  // = 1.e-28*meter2
-inline constexpr double millibarn = 9.999999999999999e-26;  // = 1.e-3 *barn
-inline constexpr double microbarn = 9.999999999999999e-29;  // = 1.e-6 *barn
-inline constexpr double nanobarn = 1e-31;  // = 1.e-9 *barn
-inline constexpr double picobarn = 1e-34;  // = 1.e-12*barn
-inline constexpr double nm = 1.0000000000000002e-06;  // = nanometer
-inline constexpr double um = 0.001;  // = micrometer
-inline constexpr double mm = 1.0;  // = millimeter
-inline constexpr double mm2 = 1.0;  // = millimeter2
-inline constexpr double mm3 = 1.0;  // = millimeter3
-inline constexpr double cm = 10.0;  // = centimeter
-inline constexpr double cm2 = 100.0;  // = centimeter2
-inline constexpr double cm3 = 1000.0;  // = centimeter3
-inline constexpr double liter = 1000000.0;  // = 1.e+3*cm3
-inline constexpr double L = 1000000.0;  // = liter
-inline constexpr double dL = 100000.0;  // = 1.e-1*liter
-inline constexpr double cL = 10000.0;  // = 1.e-2*liter
-inline constexpr double mL = 1000.0;  // = 1.e-3*liter
-inline constexpr double m = 1000.0;  // = meter
-inline constexpr double m2 = 1000000.0;  // = meter2
-inline constexpr double m3 = 1000000000.0;  // = meter3
-inline constexpr double km = 1000000.0;  // = kilometer
-inline constexpr double km2 = 1000000000000.0;  // = kilometer2
-inline constexpr double km3 = 1e+18;  // = kilometer3
-inline constexpr double pc = 3.0856775807e+19;  // = parsec
+inline constexpr double millimeter = 1.;  // = 1.0
+inline constexpr double millimeter2 = millimeter * millimeter;  // = 1.0
+inline constexpr double millimeter3 = millimeter * millimeter * millimeter;  // = 1.0
+inline constexpr double centimeter = 10. * millimeter;  // = 10.0
+inline constexpr double centimeter2 = centimeter * centimeter;  // = 100.0
+inline constexpr double centimeter3 = centimeter * centimeter * centimeter;  // = 1000.0
+inline constexpr double meter = 1000. * millimeter;  // = 1000.0
+inline constexpr double meter2 = meter * meter;  // = 1000000.0
+inline constexpr double meter3 = meter * meter * meter;  // = 1000000000.0
+inline constexpr double kilometer = 1000. * meter;  // = 1000000.0
+inline constexpr double kilometer2 = kilometer * kilometer;  // = 1000000000000.0
+inline constexpr double kilometer3 = kilometer * kilometer * kilometer;  // = 1e+18
+inline constexpr double parsec = 3.0856775807e+16 * meter;  // = 3.0856775807e+19
+inline constexpr double micrometer = 1.e-6 * meter;  // = 0.001
+inline constexpr double nanometer = 1.e-9 * meter;  // = 1.0000000000000002e-06
+inline constexpr double angstrom = 1.e-10 * meter;  // = 1.0000000000000001e-07
+inline constexpr double fermi = 1.e-15 * meter;  // = 1e-12
+inline constexpr double barn = 1.e-28 * meter2;  // = 9.999999999999999e-23
+inline constexpr double millibarn = 1.e-3 * barn;  // = 9.999999999999999e-26
+inline constexpr double microbarn = 1.e-6 * barn;  // = 9.999999999999999e-29
+inline constexpr double nanobarn = 1.e-9 * barn;  // = 1e-31
+inline constexpr double picobarn = 1.e-12 * barn;  // = 1e-34
+inline constexpr double nm = nanometer;  // = 1.0000000000000002e-06
+inline constexpr double um = micrometer;  // = 0.001
+inline constexpr double mm = millimeter;  // = 1.0
+inline constexpr double mm2 = millimeter2;  // = 1.0
+inline constexpr double mm3 = millimeter3;  // = 1.0
+inline constexpr double cm = centimeter;  // = 10.0
+inline constexpr double cm2 = centimeter2;  // = 100.0
+inline constexpr double cm3 = centimeter3;  // = 1000.0
+inline constexpr double liter = 1.e+3 * cm3;  // = 1000000.0
+inline constexpr double L = liter;  // = 1000000.0
+inline constexpr double dL = 1.e-1 * liter;  // = 100000.0
+inline constexpr double cL = 1.e-2 * liter;  // = 10000.0
+inline constexpr double mL = 1.e-3 * liter;  // = 1000.0
+inline constexpr double m = meter;  // = 1000.0
+inline constexpr double m2 = meter2;  // = 1000000.0
+inline constexpr double m3 = meter3;  // = 1000000000.0
+inline constexpr double km = kilometer;  // = 1000000.0
+inline constexpr double km2 = kilometer2;  // = 1000000000000.0
+inline constexpr double km3 = kilometer3;  // = 1e+18
+inline constexpr double pc = parsec;  // = 3.0856775807e+19
 
 // ---- Angle ----
-inline constexpr double radian = 1.0;  // = 1.
-inline constexpr double milliradian = 0.001;  // = 1.e-3*radian
-inline constexpr double degree = 0.017453292519943295;  // = (pi/180.0)*radian
-inline constexpr double steradian = 1.0;  // = 1.
-inline constexpr double rad = 1.0;  // = radian
-inline constexpr double mrad = 0.001;  // = milliradian
-inline constexpr double sr = 1.0;  // = steradian
-inline constexpr double deg = 0.017453292519943295;  // = degree
+inline constexpr double radian = 1.;  // = 1.0
+inline constexpr double milliradian = 1.e-3 * radian;  // = 0.001
+inline constexpr double degree = pi / 180.0 * radian;  // = 0.017453292519943295
+inline constexpr double steradian = 1.;  // = 1.0
+inline constexpr double rad = radian;  // = 1.0
+inline constexpr double mrad = milliradian;  // = 0.001
+inline constexpr double sr = steradian;  // = 1.0
+inline constexpr double deg = degree;  // = 0.017453292519943295
 
 // ---- Time [T] ----
-inline constexpr double nanosecond = 1.0;  // = 1.
-inline constexpr double second = 1000000000.0;  // = 1.e+9 *nanosecond
-inline constexpr double millisecond = 1000000.0;  // = 1.e-3 *second
-inline constexpr double microsecond = 1000.0;  // = 1.e-6 *second
-inline constexpr double picosecond = 0.001;  // = 1.e-12*second
-inline constexpr double minute = 60000000000.0;  // = 60*second
-inline constexpr double hour = 3600000000000.0;  // = 60*minute
-inline constexpr double day = 86400000000000.0;  // = 24*hour
-inline constexpr double year = 3.1536e+16;  // = 365*day
-inline constexpr double hertz = 1e-09;  // = 1./second
-inline constexpr double kilohertz = 1.0000000000000002e-06;  // = 1.e+3*hertz
-inline constexpr double megahertz = 0.001;  // = 1.e+6*hertz
-inline constexpr double ns = 1.0;  // = nanosecond
-inline constexpr double s = 1000000000.0;  // = second
-inline constexpr double ms = 1000000.0;  // = millisecond
-inline constexpr double us = 1000.0;  // = microsecond
-inline constexpr double ps = 0.001;  // = picosecond
+inline constexpr double nanosecond = 1.;  // = 1.0
+inline constexpr double second = 1.e+9 * nanosecond;  // = 1000000000.0
+inline constexpr double millisecond = 1.e-3 * second;  // = 1000000.0
+inline constexpr double microsecond = 1.e-6 * second;  // = 1000.0
+inline constexpr double picosecond = 1.e-12 * second;  // = 0.001
+inline constexpr double minute = 60 * second;  // = 60000000000.0
+inline constexpr double hour = 60 * minute;  // = 3600000000000.0
+inline constexpr double day = 24 * hour;  // = 86400000000000.0
+inline constexpr double year = 365 * day;  // = 3.1536e+16
+inline constexpr double hertz = 1. / second;  // = 1e-09
+inline constexpr double kilohertz = 1.e+3 * hertz;  // = 1.0000000000000002e-06
+inline constexpr double megahertz = 1.e+6 * hertz;  // = 0.001
+inline constexpr double ns = nanosecond;  // = 1.0
+inline constexpr double s = second;  // = 1000000000.0
+inline constexpr double ms = millisecond;  // = 1000000.0
+inline constexpr double us = microsecond;  // = 1000.0
+inline constexpr double ps = picosecond;  // = 0.001
 
 // ---- Electric charge [Q] ----
-inline constexpr double eplus = 1.0;  // = 1.
+inline constexpr double eplus = 1.;  // = 1.0
 inline constexpr double e_SI = 1.602176634e-19;  // = 1.602176634e-19
-inline constexpr double coulomb = 6.241509074460763e+18;  // = eplus/e_SI
+inline constexpr double coulomb = eplus / e_SI;  // = 6.241509074460763e+18
 
 // ---- Energy [E] ----
-inline constexpr double megaelectronvolt = 1.0;  // = 1.
-inline constexpr double electronvolt = 1e-06;  // = 1.e-6*megaelectronvolt
-inline constexpr double kiloelectronvolt = 0.001;  // = 1.e-3*megaelectronvolt
-inline constexpr double gigaelectronvolt = 1000.0;  // = 1.e+3*megaelectronvolt
-inline constexpr double teraelectronvolt = 1000000.0;  // = 1.e+6*megaelectronvolt
-inline constexpr double petaelectronvolt = 1000000000.0;  // = 1.e+9*megaelectronvolt
-inline constexpr double millielectronvolt = 1e-09;  // = 1.e-9*megaelectronvolt
-inline constexpr double joule = 6241509074460.763;  // = electronvolt/e_SI
-inline constexpr double MeV = 1.0;  // = megaelectronvolt
-inline constexpr double eV = 1e-06;  // = electronvolt
-inline constexpr double keV = 0.001;  // = kiloelectronvolt
-inline constexpr double GeV = 1000.0;  // = gigaelectronvolt
-inline constexpr double TeV = 1000000.0;  // = teraelectronvolt
-inline constexpr double PeV = 1000000000.0;  // = petaelectronvolt
+inline constexpr double megaelectronvolt = 1.;  // = 1.0
+inline constexpr double electronvolt = 1.e-6 * megaelectronvolt;  // = 1e-06
+inline constexpr double kiloelectronvolt = 1.e-3 * megaelectronvolt;  // = 0.001
+inline constexpr double gigaelectronvolt = 1.e+3 * megaelectronvolt;  // = 1000.0
+inline constexpr double teraelectronvolt = 1.e+6 * megaelectronvolt;  // = 1000000.0
+inline constexpr double petaelectronvolt = 1.e+9 * megaelectronvolt;  // = 1000000000.0
+inline constexpr double millielectronvolt = 1.e-9 * megaelectronvolt;  // = 1e-09
+inline constexpr double joule = electronvolt / e_SI;  // = 6241509074460.763
+inline constexpr double MeV = megaelectronvolt;  // = 1.0
+inline constexpr double eV = electronvolt;  // = 1e-06
+inline constexpr double keV = kiloelectronvolt;  // = 0.001
+inline constexpr double GeV = gigaelectronvolt;  // = 1000.0
+inline constexpr double TeV = teraelectronvolt;  // = 1000000.0
+inline constexpr double PeV = petaelectronvolt;  // = 1000000000.0
 
 // ---- Mass [E][T^2][L^-2] ----
-inline constexpr double kilogram = 6.241509074460762e+24;  // = joule*second*second/(meter*meter)
-inline constexpr double gram = 6.241509074460762e+21;  // = 1.e-3*kilogram
-inline constexpr double milligram = 6.241509074460762e+18;  // = 1.e-3*gram
-inline constexpr double kg = 6.241509074460762e+24;  // = kilogram
-inline constexpr double g = 6.241509074460762e+21;  // = gram
-inline constexpr double mg = 6.241509074460762e+18;  // = milligram
+inline constexpr double kilogram = joule * second * second / (meter * meter);  // = 6.241509074460762e+24
+inline constexpr double gram = 1.e-3 * kilogram;  // = 6.241509074460762e+21
+inline constexpr double milligram = 1.e-3 * gram;  // = 6.241509074460762e+18
+inline constexpr double kg = kilogram;  // = 6.241509074460762e+24
+inline constexpr double g = gram;  // = 6.241509074460762e+21
+inline constexpr double mg = milligram;  // = 6.241509074460762e+18
 
 // ---- Power [E][T^-1] ----
-inline constexpr double watt = 6241.509074460762;  // = joule/second
+inline constexpr double watt = joule / second;  // = 6241.509074460762
 
 // ---- Force [E][L^-1] ----
-inline constexpr double newton = 6241509074.460763;  // = joule/meter
+inline constexpr double newton = joule / meter;  // = 6241509074.460763
 
 // ---- Pressure [E][L^-3] ----
-inline constexpr double hep_pascal = 6241.509074460763;  // = newton/m2
-inline constexpr double pascal = 6241.509074460763;  // = hep_pascal
-inline constexpr double bar = 624150907.4460763;  // = 100000*pascal
-inline constexpr double atmosphere = 632420906.9697368;  // = 101325*pascal
+inline constexpr double hep_pascal = newton / m2;  // = 6241.509074460763
+inline constexpr double pascal = hep_pascal;  // = 6241.509074460763
+inline constexpr double bar = 100000 * pascal;  // = 624150907.4460763
+inline constexpr double atmosphere = 101325 * pascal;  // = 632420906.9697368
 
 // ---- Electric current [Q][T^-1] ----
-inline constexpr double ampere = 6241509074.460763;  // = coulomb/second
-inline constexpr double milliampere = 6241509.0744607635;  // = 1.e-3*ampere
-inline constexpr double microampere = 6241.509074460762;  // = 1.e-6*ampere
-inline constexpr double nanoampere = 6.2415090744607635;  // = 1.e-9*ampere
+inline constexpr double ampere = coulomb / second;  // = 6241509074.460763
+inline constexpr double milliampere = 1.e-3 * ampere;  // = 6241509.0744607635
+inline constexpr double microampere = 1.e-6 * ampere;  // = 6241.509074460762
+inline constexpr double nanoampere = 1.e-9 * ampere;  // = 6.2415090744607635
 
 // ---- Electric potential [E][Q^-1] ----
-inline constexpr double megavolt = 1.0;  // = megaelectronvolt/eplus
-inline constexpr double kilovolt = 0.001;  // = 1.e-3*megavolt
-inline constexpr double volt = 1e-06;  // = 1.e-6*megavolt
+inline constexpr double megavolt = megaelectronvolt / eplus;  // = 1.0
+inline constexpr double kilovolt = 1.e-3 * megavolt;  // = 0.001
+inline constexpr double volt = 1.e-6 * megavolt;  // = 1e-06
 
 // ---- Electric resistance [E][T][Q^-2] ----
-inline constexpr double ohm = 1.602176634e-16;  // = volt/ampere
+inline constexpr double ohm = volt / ampere;  // = 1.602176634e-16
 
 // ---- Electric capacitance [Q^2][E^-1] ----
-inline constexpr double farad = 6.241509074460764e+24;  // = coulomb/volt
-inline constexpr double millifarad = 6.241509074460764e+21;  // = 1.e-3*farad
-inline constexpr double microfarad = 6.241509074460763e+18;  // = 1.e-6*farad
-inline constexpr double nanofarad = 6241509074460764.0;  // = 1.e-9*farad
-inline constexpr double picofarad = 6241509074460.764;  // = 1.e-12*farad
+inline constexpr double farad = coulomb / volt;  // = 6.241509074460764e+24
+inline constexpr double millifarad = 1.e-3 * farad;  // = 6.241509074460764e+21
+inline constexpr double microfarad = 1.e-6 * farad;  // = 6.241509074460763e+18
+inline constexpr double nanofarad = 1.e-9 * farad;  // = 6241509074460764.0
+inline constexpr double picofarad = 1.e-12 * farad;  // = 6241509074460.764
 
 // ---- Magnetic Flux [T][E][Q^-1] ----
-inline constexpr double weber = 1000.0;  // = volt*second
+inline constexpr double weber = volt * second;  // = 1000.0
 
 // ---- Magnetic Field [T][E][Q^-1][L^-2] ----
-inline constexpr double tesla = 0.001;  // = volt*second/meter2
-inline constexpr double gauss = 1.0000000000000001e-07;  // = 1.e-4*tesla
-inline constexpr double kilogauss = 0.0001;  // = 1.e-1*tesla
+inline constexpr double tesla = volt * second / meter2;  // = 0.001
+inline constexpr double gauss = 1.e-4 * tesla;  // = 1.0000000000000001e-07
+inline constexpr double kilogauss = 1.e-1 * tesla;  // = 0.0001
 
 // ---- Inductance [T^2][E][Q^-2] ----
-inline constexpr double henry = 1.602176634e-07;  // = weber/ampere
+inline constexpr double henry = weber / ampere;  // = 1.602176634e-07
 
 // ---- Temperature ----
-inline constexpr double kelvin = 1.0;  // = 1.
+inline constexpr double kelvin = 1.;  // = 1.0
 
 // ---- Amount of substance ----
-inline constexpr double mole = 1.0;  // = 1.
+inline constexpr double mole = 1.;  // = 1.0
 
 // ---- Activity [T^-1] ----
-inline constexpr double becquerel = 1e-09;  // = 1./second
-inline constexpr double curie = 37.0;  // = 3.7e+10 * becquerel
-inline constexpr double kilobecquerel = 1.0000000000000002e-06;  // = 1.e+3*becquerel
-inline constexpr double megabecquerel = 0.001;  // = 1.e+6*becquerel
-inline constexpr double gigabecquerel = 1.0;  // = 1.e+9*becquerel
-inline constexpr double millicurie = 0.037;  // = 1.e-3*curie
-inline constexpr double microcurie = 3.7e-05;  // = 1.e-6*curie
-inline constexpr double Bq = 1e-09;  // = becquerel
-inline constexpr double kBq = 1.0000000000000002e-06;  // = kilobecquerel
-inline constexpr double MBq = 0.001;  // = megabecquerel
-inline constexpr double GBq = 1.0;  // = gigabecquerel
-inline constexpr double Ci = 37.0;  // = curie
-inline constexpr double mCi = 0.037;  // = millicurie
-inline constexpr double uCi = 3.7e-05;  // = microcurie
+inline constexpr double becquerel = 1. / second;  // = 1e-09
+inline constexpr double curie = 3.7e+10 * becquerel;  // = 37.0
+inline constexpr double kilobecquerel = 1.e+3 * becquerel;  // = 1.0000000000000002e-06
+inline constexpr double megabecquerel = 1.e+6 * becquerel;  // = 0.001
+inline constexpr double gigabecquerel = 1.e+9 * becquerel;  // = 1.0
+inline constexpr double millicurie = 1.e-3 * curie;  // = 0.037
+inline constexpr double microcurie = 1.e-6 * curie;  // = 3.7e-05
+inline constexpr double Bq = becquerel;  // = 1e-09
+inline constexpr double kBq = kilobecquerel;  // = 1.0000000000000002e-06
+inline constexpr double MBq = megabecquerel;  // = 0.001
+inline constexpr double GBq = gigabecquerel;  // = 1.0
+inline constexpr double Ci = curie;  // = 37.0
+inline constexpr double mCi = millicurie;  // = 0.037
+inline constexpr double uCi = microcurie;  // = 3.7e-05
 
 // ---- Absorbed dose [L^2][T^-2] ----
-inline constexpr double gray = 1.0000000000000002e-12;  // = joule/kilogram
-inline constexpr double kilogray = 1.0000000000000003e-09;  // = 1.e+3*gray
-inline constexpr double milligray = 1.0000000000000003e-15;  // = 1.e-3*gray
-inline constexpr double microgray = 1e-18;  // = 1.e-6*gray
+inline constexpr double gray = joule / kilogram;  // = 1.0000000000000002e-12
+inline constexpr double kilogray = 1.e+3 * gray;  // = 1.0000000000000003e-09
+inline constexpr double milligray = 1.e-3 * gray;  // = 1.0000000000000003e-15
+inline constexpr double microgray = 1.e-6 * gray;  // = 1e-18
 
 // ---- Luminous intensity [I] ----
-inline constexpr double candela = 1.0;  // = 1.
+inline constexpr double candela = 1.;  // = 1.0
 
 // ---- Luminous flux [I] ----
-inline constexpr double lumen = 1.0;  // = candela*steradian
+inline constexpr double lumen = candela * steradian;  // = 1.0
 
 // ---- Illuminance [I][L^-2] ----
-inline constexpr double lux = 1e-06;  // = lumen/meter2
+inline constexpr double lux = lumen / meter2;  // = 1e-06
 
 // ---- Miscellaneous ----
 inline constexpr double perCent = 0.01;  // = 0.01
 inline constexpr double perThousand = 0.001;  // = 0.001
-inline constexpr double perMillion = 1e-06;  // = 0.000001
+inline constexpr double perMillion = 0.000001;  // = 1e-06
 
 // ---- Imperial length ----
-inline constexpr double inch = 25.4;  // = 25.4*mm
-inline constexpr double foot = 304.79999999999995;  // = 12*inch
-inline constexpr double yard = 914.3999999999999;  // = 3*foot
-inline constexpr double mile = 1609343.9999999998;  // = 5280*foot
+inline constexpr double inch = 25.4 * mm;  // = 25.4
+inline constexpr double foot = 12 * inch;  // = 304.79999999999995
+inline constexpr double yard = 3 * foot;  // = 914.3999999999999
+inline constexpr double mile = 5280 * foot;  // = 1609343.9999999998
 
 // ---- Time (extra) ----
-inline constexpr double week = 604800000000000.0;  // = 7*day
-inline constexpr double microsecond2 = 1000000.0;  // = microsecond*microsecond
+inline constexpr double week = 7 * day;  // = 604800000000000.0
+inline constexpr double microsecond2 = microsecond * microsecond;  // = 1000000.0
 
 // ---- Energy (extra) ----
-inline constexpr double erg = 624150.9074460763;  // = 1.e-7*joule
-inline constexpr double kilowatt = 6241509.074460763;  // = 1.e+3*watt
-inline constexpr double kilowatt_hour = 2.2469432668058747e+19;  // = kilowatt*hour
+inline constexpr double erg = 1.e-7 * joule;  // = 624150.9074460763
+inline constexpr double kilowatt = 1.e+3 * watt;  // = 6241509.074460763
+inline constexpr double kilowatt_hour = kilowatt * hour;  // = 2.2469432668058747e+19
 
 // ---- Fundamental constants (constants) ----
-inline constexpr double Avogadro = 6.02214076e+23;  // = 6.02214076e+23/mole
-inline constexpr double c_light = 299.792458;  // = 2.99792458e+8 * m/s
-inline constexpr double c_squared = 89875.51787368178;  // = c_light*c_light
-inline constexpr double h_Planck = 4.135667696923858e-12;  // = 6.62607015e-34 * joule*s
-inline constexpr double hbar_Planck = 6.582119569509065e-13;  // = h_Planck/twopi
-inline constexpr double hbarc = 1.9732698045930245e-10;  // = hbar_Planck*c_light
-inline constexpr double k_Boltzmann = 8.617333262145178e-11;  // = 1.380649e-23 * joule/kelvin
+inline constexpr double Avogadro = 6.02214076e+23 / mole;  // = 6.02214076e+23
+inline constexpr double c_light = 2.99792458e+8 * m / s;  // = 299.792458
+inline constexpr double c_squared = c_light * c_light;  // = 89875.51787368178
+inline constexpr double h_Planck = 6.62607015e-34 * joule * s;  // = 4.135667696923858e-12
+inline constexpr double hbar_Planck = h_Planck / twopi;  // = 6.582119569509065e-13
+inline constexpr double hbarc = hbar_Planck * c_light;  // = 1.9732698045930245e-10
+inline constexpr double k_Boltzmann = 1.380649e-23 * joule / kelvin;  // = 8.617333262145178e-11
 
 // ---- Electromagnetic constants (constants) ----
-inline constexpr double electron_charge = -1.0;  // = -eplus
-inline constexpr double fine_structure_const = 0.0072973525693;  // = 7.2973525693e-3
+inline constexpr double electron_charge = -eplus;  // = -1.0
+inline constexpr double fine_structure_const = 7.2973525693e-3;  // = 0.0072973525693
 
 // ---- Particle masses (energy equivalent) (constants) ----
-inline constexpr double electron_mass_c2 = 0.51099895;  // = 0.51099895000 * MeV
-inline constexpr double proton_mass_c2 = 938.27208816;  // = 938.27208816 * MeV
-inline constexpr double neutron_mass_c2 = 939.56542052;  // = 939.56542052 * MeV
-inline constexpr double amu_c2 = 931.49410242;  // = 931.49410242 * MeV
+inline constexpr double electron_mass_c2 = 0.51099895000 * MeV;  // = 0.51099895
+inline constexpr double proton_mass_c2 = 938.27208816 * MeV;  // = 938.27208816
+inline constexpr double neutron_mass_c2 = 939.56542052 * MeV;  // = 939.56542052
+inline constexpr double amu_c2 = 931.49410242 * MeV;  // = 931.49410242
 
 // ------------------------------------------------------------------------
 // Lookup table of every named symbol (units and constants).

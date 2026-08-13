@@ -175,232 +175,232 @@ __all__ = [
 ]
 
 # ---- Mathematical constants ----
-pi = 3.141592653589793  # = 3.14159265358979323846
-twopi = 6.283185307179586  # = 2*pi
-halfpi = 1.5707963267948966  # = pi/2
-pi2 = 9.869604401089358  # = pi*pi
+pi = 3.14159265358979323846  # = 3.141592653589793
+twopi = 2 * pi  # = 6.283185307179586
+halfpi = pi / 2  # = 1.5707963267948966
+pi2 = pi * pi  # = 9.869604401089358
 
 # ---- Length [L] ----
-millimeter = 1.0  # = 1.
-millimeter2 = 1.0  # = millimeter*millimeter
-millimeter3 = 1.0  # = millimeter*millimeter*millimeter
-centimeter = 10.0  # = 10.*millimeter
-centimeter2 = 100.0  # = centimeter*centimeter
-centimeter3 = 1000.0  # = centimeter*centimeter*centimeter
-meter = 1000.0  # = 1000.*millimeter
-meter2 = 1000000.0  # = meter*meter
-meter3 = 1000000000.0  # = meter*meter*meter
-kilometer = 1000000.0  # = 1000.*meter
-kilometer2 = 1000000000000.0  # = kilometer*kilometer
-kilometer3 = 1e+18  # = kilometer*kilometer*kilometer
-parsec = 3.0856775807e+19  # = 3.0856775807e+16*meter
-micrometer = 0.001  # = 1.e-6 *meter
-nanometer = 1.0000000000000002e-06  # = 1.e-9 *meter
-angstrom = 1.0000000000000001e-07  # = 1.e-10*meter
-fermi = 1e-12  # = 1.e-15*meter
-barn = 9.999999999999999e-23  # = 1.e-28*meter2
-millibarn = 9.999999999999999e-26  # = 1.e-3 *barn
-microbarn = 9.999999999999999e-29  # = 1.e-6 *barn
-nanobarn = 1e-31  # = 1.e-9 *barn
-picobarn = 1e-34  # = 1.e-12*barn
-nm = 1.0000000000000002e-06  # = nanometer
-um = 0.001  # = micrometer
-mm = 1.0  # = millimeter
-mm2 = 1.0  # = millimeter2
-mm3 = 1.0  # = millimeter3
-cm = 10.0  # = centimeter
-cm2 = 100.0  # = centimeter2
-cm3 = 1000.0  # = centimeter3
-liter = 1000000.0  # = 1.e+3*cm3
-L = 1000000.0  # = liter
-dL = 100000.0  # = 1.e-1*liter
-cL = 10000.0  # = 1.e-2*liter
-mL = 1000.0  # = 1.e-3*liter
-m = 1000.0  # = meter
-m2 = 1000000.0  # = meter2
-m3 = 1000000000.0  # = meter3
-km = 1000000.0  # = kilometer
-km2 = 1000000000000.0  # = kilometer2
-km3 = 1e+18  # = kilometer3
-pc = 3.0856775807e+19  # = parsec
+millimeter = 1.  # = 1.0
+millimeter2 = millimeter * millimeter  # = 1.0
+millimeter3 = millimeter * millimeter * millimeter  # = 1.0
+centimeter = 10. * millimeter  # = 10.0
+centimeter2 = centimeter * centimeter  # = 100.0
+centimeter3 = centimeter * centimeter * centimeter  # = 1000.0
+meter = 1000. * millimeter  # = 1000.0
+meter2 = meter * meter  # = 1000000.0
+meter3 = meter * meter * meter  # = 1000000000.0
+kilometer = 1000. * meter  # = 1000000.0
+kilometer2 = kilometer * kilometer  # = 1000000000000.0
+kilometer3 = kilometer * kilometer * kilometer  # = 1e+18
+parsec = 3.0856775807e+16 * meter  # = 3.0856775807e+19
+micrometer = 1.e-6 * meter  # = 0.001
+nanometer = 1.e-9 * meter  # = 1.0000000000000002e-06
+angstrom = 1.e-10 * meter  # = 1.0000000000000001e-07
+fermi = 1.e-15 * meter  # = 1e-12
+barn = 1.e-28 * meter2  # = 9.999999999999999e-23
+millibarn = 1.e-3 * barn  # = 9.999999999999999e-26
+microbarn = 1.e-6 * barn  # = 9.999999999999999e-29
+nanobarn = 1.e-9 * barn  # = 1e-31
+picobarn = 1.e-12 * barn  # = 1e-34
+nm = nanometer  # = 1.0000000000000002e-06
+um = micrometer  # = 0.001
+mm = millimeter  # = 1.0
+mm2 = millimeter2  # = 1.0
+mm3 = millimeter3  # = 1.0
+cm = centimeter  # = 10.0
+cm2 = centimeter2  # = 100.0
+cm3 = centimeter3  # = 1000.0
+liter = 1.e+3 * cm3  # = 1000000.0
+L = liter  # = 1000000.0
+dL = 1.e-1 * liter  # = 100000.0
+cL = 1.e-2 * liter  # = 10000.0
+mL = 1.e-3 * liter  # = 1000.0
+m = meter  # = 1000.0
+m2 = meter2  # = 1000000.0
+m3 = meter3  # = 1000000000.0
+km = kilometer  # = 1000000.0
+km2 = kilometer2  # = 1000000000000.0
+km3 = kilometer3  # = 1e+18
+pc = parsec  # = 3.0856775807e+19
 
 # ---- Angle ----
-radian = 1.0  # = 1.
-milliradian = 0.001  # = 1.e-3*radian
-degree = 0.017453292519943295  # = (pi/180.0)*radian
-steradian = 1.0  # = 1.
-rad = 1.0  # = radian
-mrad = 0.001  # = milliradian
-sr = 1.0  # = steradian
-deg = 0.017453292519943295  # = degree
+radian = 1.  # = 1.0
+milliradian = 1.e-3 * radian  # = 0.001
+degree = pi / 180.0 * radian  # = 0.017453292519943295
+steradian = 1.  # = 1.0
+rad = radian  # = 1.0
+mrad = milliradian  # = 0.001
+sr = steradian  # = 1.0
+deg = degree  # = 0.017453292519943295
 
 # ---- Time [T] ----
-nanosecond = 1.0  # = 1.
-second = 1000000000.0  # = 1.e+9 *nanosecond
-millisecond = 1000000.0  # = 1.e-3 *second
-microsecond = 1000.0  # = 1.e-6 *second
-picosecond = 0.001  # = 1.e-12*second
-minute = 60000000000.0  # = 60*second
-hour = 3600000000000.0  # = 60*minute
-day = 86400000000000.0  # = 24*hour
-year = 3.1536e+16  # = 365*day
-hertz = 1e-09  # = 1./second
-kilohertz = 1.0000000000000002e-06  # = 1.e+3*hertz
-megahertz = 0.001  # = 1.e+6*hertz
-ns = 1.0  # = nanosecond
-s = 1000000000.0  # = second
-ms = 1000000.0  # = millisecond
-us = 1000.0  # = microsecond
-ps = 0.001  # = picosecond
+nanosecond = 1.  # = 1.0
+second = 1.e+9 * nanosecond  # = 1000000000.0
+millisecond = 1.e-3 * second  # = 1000000.0
+microsecond = 1.e-6 * second  # = 1000.0
+picosecond = 1.e-12 * second  # = 0.001
+minute = 60 * second  # = 60000000000.0
+hour = 60 * minute  # = 3600000000000.0
+day = 24 * hour  # = 86400000000000.0
+year = 365 * day  # = 3.1536e+16
+hertz = 1. / second  # = 1e-09
+kilohertz = 1.e+3 * hertz  # = 1.0000000000000002e-06
+megahertz = 1.e+6 * hertz  # = 0.001
+ns = nanosecond  # = 1.0
+s = second  # = 1000000000.0
+ms = millisecond  # = 1000000.0
+us = microsecond  # = 1000.0
+ps = picosecond  # = 0.001
 
 # ---- Electric charge [Q] ----
-eplus = 1.0  # = 1.
+eplus = 1.  # = 1.0
 e_SI = 1.602176634e-19  # = 1.602176634e-19
-coulomb = 6.241509074460763e+18  # = eplus/e_SI
+coulomb = eplus / e_SI  # = 6.241509074460763e+18
 
 # ---- Energy [E] ----
-megaelectronvolt = 1.0  # = 1.
-electronvolt = 1e-06  # = 1.e-6*megaelectronvolt
-kiloelectronvolt = 0.001  # = 1.e-3*megaelectronvolt
-gigaelectronvolt = 1000.0  # = 1.e+3*megaelectronvolt
-teraelectronvolt = 1000000.0  # = 1.e+6*megaelectronvolt
-petaelectronvolt = 1000000000.0  # = 1.e+9*megaelectronvolt
-millielectronvolt = 1e-09  # = 1.e-9*megaelectronvolt
-joule = 6241509074460.763  # = electronvolt/e_SI
-MeV = 1.0  # = megaelectronvolt
-eV = 1e-06  # = electronvolt
-keV = 0.001  # = kiloelectronvolt
-GeV = 1000.0  # = gigaelectronvolt
-TeV = 1000000.0  # = teraelectronvolt
-PeV = 1000000000.0  # = petaelectronvolt
+megaelectronvolt = 1.  # = 1.0
+electronvolt = 1.e-6 * megaelectronvolt  # = 1e-06
+kiloelectronvolt = 1.e-3 * megaelectronvolt  # = 0.001
+gigaelectronvolt = 1.e+3 * megaelectronvolt  # = 1000.0
+teraelectronvolt = 1.e+6 * megaelectronvolt  # = 1000000.0
+petaelectronvolt = 1.e+9 * megaelectronvolt  # = 1000000000.0
+millielectronvolt = 1.e-9 * megaelectronvolt  # = 1e-09
+joule = electronvolt / e_SI  # = 6241509074460.763
+MeV = megaelectronvolt  # = 1.0
+eV = electronvolt  # = 1e-06
+keV = kiloelectronvolt  # = 0.001
+GeV = gigaelectronvolt  # = 1000.0
+TeV = teraelectronvolt  # = 1000000.0
+PeV = petaelectronvolt  # = 1000000000.0
 
 # ---- Mass [E][T^2][L^-2] ----
-kilogram = 6.241509074460762e+24  # = joule*second*second/(meter*meter)
-gram = 6.241509074460762e+21  # = 1.e-3*kilogram
-milligram = 6.241509074460762e+18  # = 1.e-3*gram
-kg = 6.241509074460762e+24  # = kilogram
-g = 6.241509074460762e+21  # = gram
-mg = 6.241509074460762e+18  # = milligram
+kilogram = joule * second * second / (meter * meter)  # = 6.241509074460762e+24
+gram = 1.e-3 * kilogram  # = 6.241509074460762e+21
+milligram = 1.e-3 * gram  # = 6.241509074460762e+18
+kg = kilogram  # = 6.241509074460762e+24
+g = gram  # = 6.241509074460762e+21
+mg = milligram  # = 6.241509074460762e+18
 
 # ---- Power [E][T^-1] ----
-watt = 6241.509074460762  # = joule/second
+watt = joule / second  # = 6241.509074460762
 
 # ---- Force [E][L^-1] ----
-newton = 6241509074.460763  # = joule/meter
+newton = joule / meter  # = 6241509074.460763
 
 # ---- Pressure [E][L^-3] ----
-hep_pascal = 6241.509074460763  # = newton/m2
-pascal = 6241.509074460763  # = hep_pascal
-bar = 624150907.4460763  # = 100000*pascal
-atmosphere = 632420906.9697368  # = 101325*pascal
+hep_pascal = newton / m2  # = 6241.509074460763
+pascal = hep_pascal  # = 6241.509074460763
+bar = 100000 * pascal  # = 624150907.4460763
+atmosphere = 101325 * pascal  # = 632420906.9697368
 
 # ---- Electric current [Q][T^-1] ----
-ampere = 6241509074.460763  # = coulomb/second
-milliampere = 6241509.0744607635  # = 1.e-3*ampere
-microampere = 6241.509074460762  # = 1.e-6*ampere
-nanoampere = 6.2415090744607635  # = 1.e-9*ampere
+ampere = coulomb / second  # = 6241509074.460763
+milliampere = 1.e-3 * ampere  # = 6241509.0744607635
+microampere = 1.e-6 * ampere  # = 6241.509074460762
+nanoampere = 1.e-9 * ampere  # = 6.2415090744607635
 
 # ---- Electric potential [E][Q^-1] ----
-megavolt = 1.0  # = megaelectronvolt/eplus
-kilovolt = 0.001  # = 1.e-3*megavolt
-volt = 1e-06  # = 1.e-6*megavolt
+megavolt = megaelectronvolt / eplus  # = 1.0
+kilovolt = 1.e-3 * megavolt  # = 0.001
+volt = 1.e-6 * megavolt  # = 1e-06
 
 # ---- Electric resistance [E][T][Q^-2] ----
-ohm = 1.602176634e-16  # = volt/ampere
+ohm = volt / ampere  # = 1.602176634e-16
 
 # ---- Electric capacitance [Q^2][E^-1] ----
-farad = 6.241509074460764e+24  # = coulomb/volt
-millifarad = 6.241509074460764e+21  # = 1.e-3*farad
-microfarad = 6.241509074460763e+18  # = 1.e-6*farad
-nanofarad = 6241509074460764.0  # = 1.e-9*farad
-picofarad = 6241509074460.764  # = 1.e-12*farad
+farad = coulomb / volt  # = 6.241509074460764e+24
+millifarad = 1.e-3 * farad  # = 6.241509074460764e+21
+microfarad = 1.e-6 * farad  # = 6.241509074460763e+18
+nanofarad = 1.e-9 * farad  # = 6241509074460764.0
+picofarad = 1.e-12 * farad  # = 6241509074460.764
 
 # ---- Magnetic Flux [T][E][Q^-1] ----
-weber = 1000.0  # = volt*second
+weber = volt * second  # = 1000.0
 
 # ---- Magnetic Field [T][E][Q^-1][L^-2] ----
-tesla = 0.001  # = volt*second/meter2
-gauss = 1.0000000000000001e-07  # = 1.e-4*tesla
-kilogauss = 0.0001  # = 1.e-1*tesla
+tesla = volt * second / meter2  # = 0.001
+gauss = 1.e-4 * tesla  # = 1.0000000000000001e-07
+kilogauss = 1.e-1 * tesla  # = 0.0001
 
 # ---- Inductance [T^2][E][Q^-2] ----
-henry = 1.602176634e-07  # = weber/ampere
+henry = weber / ampere  # = 1.602176634e-07
 
 # ---- Temperature ----
-kelvin = 1.0  # = 1.
+kelvin = 1.  # = 1.0
 
 # ---- Amount of substance ----
-mole = 1.0  # = 1.
+mole = 1.  # = 1.0
 
 # ---- Activity [T^-1] ----
-becquerel = 1e-09  # = 1./second
-curie = 37.0  # = 3.7e+10 * becquerel
-kilobecquerel = 1.0000000000000002e-06  # = 1.e+3*becquerel
-megabecquerel = 0.001  # = 1.e+6*becquerel
-gigabecquerel = 1.0  # = 1.e+9*becquerel
-millicurie = 0.037  # = 1.e-3*curie
-microcurie = 3.7e-05  # = 1.e-6*curie
-Bq = 1e-09  # = becquerel
-kBq = 1.0000000000000002e-06  # = kilobecquerel
-MBq = 0.001  # = megabecquerel
-GBq = 1.0  # = gigabecquerel
-Ci = 37.0  # = curie
-mCi = 0.037  # = millicurie
-uCi = 3.7e-05  # = microcurie
+becquerel = 1. / second  # = 1e-09
+curie = 3.7e+10 * becquerel  # = 37.0
+kilobecquerel = 1.e+3 * becquerel  # = 1.0000000000000002e-06
+megabecquerel = 1.e+6 * becquerel  # = 0.001
+gigabecquerel = 1.e+9 * becquerel  # = 1.0
+millicurie = 1.e-3 * curie  # = 0.037
+microcurie = 1.e-6 * curie  # = 3.7e-05
+Bq = becquerel  # = 1e-09
+kBq = kilobecquerel  # = 1.0000000000000002e-06
+MBq = megabecquerel  # = 0.001
+GBq = gigabecquerel  # = 1.0
+Ci = curie  # = 37.0
+mCi = millicurie  # = 0.037
+uCi = microcurie  # = 3.7e-05
 
 # ---- Absorbed dose [L^2][T^-2] ----
-gray = 1.0000000000000002e-12  # = joule/kilogram
-kilogray = 1.0000000000000003e-09  # = 1.e+3*gray
-milligray = 1.0000000000000003e-15  # = 1.e-3*gray
-microgray = 1e-18  # = 1.e-6*gray
+gray = joule / kilogram  # = 1.0000000000000002e-12
+kilogray = 1.e+3 * gray  # = 1.0000000000000003e-09
+milligray = 1.e-3 * gray  # = 1.0000000000000003e-15
+microgray = 1.e-6 * gray  # = 1e-18
 
 # ---- Luminous intensity [I] ----
-candela = 1.0  # = 1.
+candela = 1.  # = 1.0
 
 # ---- Luminous flux [I] ----
-lumen = 1.0  # = candela*steradian
+lumen = candela * steradian  # = 1.0
 
 # ---- Illuminance [I][L^-2] ----
-lux = 1e-06  # = lumen/meter2
+lux = lumen / meter2  # = 1e-06
 
 # ---- Miscellaneous ----
 perCent = 0.01  # = 0.01
 perThousand = 0.001  # = 0.001
-perMillion = 1e-06  # = 0.000001
+perMillion = 0.000001  # = 1e-06
 
 # ---- Imperial length ----
-inch = 25.4  # = 25.4*mm
-foot = 304.79999999999995  # = 12*inch
-yard = 914.3999999999999  # = 3*foot
-mile = 1609343.9999999998  # = 5280*foot
+inch = 25.4 * mm  # = 25.4
+foot = 12 * inch  # = 304.79999999999995
+yard = 3 * foot  # = 914.3999999999999
+mile = 5280 * foot  # = 1609343.9999999998
 
 # ---- Time (extra) ----
-week = 604800000000000.0  # = 7*day
-microsecond2 = 1000000.0  # = microsecond*microsecond
+week = 7 * day  # = 604800000000000.0
+microsecond2 = microsecond * microsecond  # = 1000000.0
 
 # ---- Energy (extra) ----
-erg = 624150.9074460763  # = 1.e-7*joule
-kilowatt = 6241509.074460763  # = 1.e+3*watt
-kilowatt_hour = 2.2469432668058747e+19  # = kilowatt*hour
+erg = 1.e-7 * joule  # = 624150.9074460763
+kilowatt = 1.e+3 * watt  # = 6241509.074460763
+kilowatt_hour = kilowatt * hour  # = 2.2469432668058747e+19
 
 # ---- Fundamental constants (constants) ----
-Avogadro = 6.02214076e+23  # = 6.02214076e+23/mole
-c_light = 299.792458  # = 2.99792458e+8 * m/s
-c_squared = 89875.51787368178  # = c_light*c_light
-h_Planck = 4.135667696923858e-12  # = 6.62607015e-34 * joule*s
-hbar_Planck = 6.582119569509065e-13  # = h_Planck/twopi
-hbarc = 1.9732698045930245e-10  # = hbar_Planck*c_light
-k_Boltzmann = 8.617333262145178e-11  # = 1.380649e-23 * joule/kelvin
+Avogadro = 6.02214076e+23 / mole  # = 6.02214076e+23
+c_light = 2.99792458e+8 * m / s  # = 299.792458
+c_squared = c_light * c_light  # = 89875.51787368178
+h_Planck = 6.62607015e-34 * joule * s  # = 4.135667696923858e-12
+hbar_Planck = h_Planck / twopi  # = 6.582119569509065e-13
+hbarc = hbar_Planck * c_light  # = 1.9732698045930245e-10
+k_Boltzmann = 1.380649e-23 * joule / kelvin  # = 8.617333262145178e-11
 
 # ---- Electromagnetic constants (constants) ----
-electron_charge = -1.0  # = -eplus
-fine_structure_const = 0.0072973525693  # = 7.2973525693e-3
+electron_charge = -eplus  # = -1.0
+fine_structure_const = 7.2973525693e-3  # = 0.0072973525693
 
 # ---- Particle masses (energy equivalent) (constants) ----
-electron_mass_c2 = 0.51099895  # = 0.51099895000 * MeV
-proton_mass_c2 = 938.27208816  # = 938.27208816 * MeV
-neutron_mass_c2 = 939.56542052  # = 939.56542052 * MeV
-amu_c2 = 931.49410242  # = 931.49410242 * MeV
+electron_mass_c2 = 0.51099895000 * MeV  # = 0.51099895
+proton_mass_c2 = 938.27208816 * MeV  # = 938.27208816
+neutron_mass_c2 = 939.56542052 * MeV  # = 939.56542052
+amu_c2 = 931.49410242 * MeV  # = 931.49410242
 
 #: Lookup table of every named symbol (units and constants).
 TABLE = {

@@ -10,9 +10,17 @@ source of truth:
 | Python module | `src/dune_units/__init__.py` | `import dune_units as u` → `u.cm`, `u.parse(...)` |
 | Jsonnet library | `jsonnet/dune/units.libsonnet` | `local u = import 'dune/units.libsonnet';` → `u.cm`, `u.parse(...)` |
 
-All three carry identical numeric values (IEEE-754 doubles) and the same set of
-166 named symbols, so a length written as `1.5*cm` means the same thing in C++,
-Python and Jsonnet.
+All three carry identical numeric values (IEEE-754 doubles, verified
+bit-for-bit) and the same set of 166 named symbols, so a length written as
+`1.5*cm` means the same thing in C++, Python and Jsonnet.
+
+Each product keeps the **structure** of every definition rather than a
+flattened number — e.g. the C++ header has `inline constexpr double cm2 =
+cm*cm;`, Python has `cm2 = cm*cm`, Jsonnet has `cm2:: self.cm * self.cm` — with
+the resolved value in a trailing comment. Because the three languages share
+operator precedence, left-associativity and `double` semantics, this is exactly
+equivalent to the flattened form while letting a reader see how each unit is
+built up.
 
 ## Single source of truth
 
@@ -40,9 +48,14 @@ meter       = 1000.*millimeter   # trailing comments after '#' are allowed
 ```
 
 - `NAME` is a C/Python identifier.
-- `EXPRESSION` is simple arithmetic — `+ - * / **`, parentheses, unary `+/-` —
-  over numeric literals and **previously defined** names. Definitions are
-  evaluated top-to-bottom; files are consumed in the order given.
+- `EXPRESSION` is simple arithmetic — `+ - * /`, parentheses, unary `+/-` — over
+  numeric literals and **previously defined** names. Definitions are evaluated
+  top-to-bottom; files are consumed in the order given, so each name must be
+  defined before it is used.
+- `**` (power) is accepted only with an **integer** exponent; the generator
+  expands it to repeated multiplication (`x**2` → `x*x`) so the output stays
+  valid `constexpr` C++ and bit-identical across languages. Prefer writing the
+  multiplication out (e.g. `c_squared = c_light*c_light`).
 - Every defined symbol (units and constants alike) becomes a named value in each
   product and an entry in that product's lookup table.
 
