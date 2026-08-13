@@ -1,0 +1,508 @@
+#!/usr/bin/env python3
+# Copyright dune-units authors.  SPDX-License-Identifier: Apache-2.0
+"""
+Generate the dune-units products (C++ header, Python module, Jsonnet library)
+from the source-of-truth ``.units`` files.
+
+This is a DEVELOPER tool.  Its outputs are committed into the package so that
+downstream builds never need to run it (and never need this script's runtime,
+which is nothing more than the Python standard library).  Re-run it whenever a
+``.units`` source changes:
+
+    python generate/generate.py
+
+By default it reads ``units/clhep.units`` then ``units/dune.units`` and writes:
+
+    include/dune/units.hpp
+    src/dune_units/__init__.py
+    jsonnet/dune/units.libsonnet
+
+The source-of-truth format
+--------------------------
+A ``.units`` file is a sequence of lines.  Blank lines and lines whose first
+non-space character is ``#`` are ignored.  Otherwise a line is one of:
+
+    @section <free text>      -- a grouping label for the definitions that
+                                 follow (used only to organise the output)
+    @kind unit|constant       -- tag the following definitions as either a
+                                 "unit" or a "constant" (default: unit)
+    NAME = EXPRESSION         -- define symbol NAME.
+
+NAME is a C/Python identifier.  EXPRESSION is simple arithmetic over numeric
+literals and previously-defined NAMEs using ``+ - * / **`` and parentheses
+(unary +/- allowed).  Definitions are evaluated in order; a name must be
+defined before it is used.  Files given on the command line are concatenated in
+order, so later files may reference names from earlier ones.
+
+All defined symbols -- units and constants alike -- become named values in each
+product and populate the lookup table used by the generated ``parse()``
+function.
+"""
+
+import ast
+import argparse
+import operator
+from pathlib import Path
+
+# --------------------------------------------------------------------------
+# Parsing the source-of-truth format.
+# --------------------------------------------------------------------------
+
+_BINOPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
+}
+_UNOPS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+
+def _eval(node, symbols):
+    """Safely evaluate a parsed arithmetic expression against ``symbols``."""
+    if isinstance(node, ast.Expression):
+        return _eval(node.body, symbols)
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, (int, float)):
+            return float(node.value)
+        raise ValueError(f"non-numeric constant: {node.value!r}")
+    if isinstance(node, ast.Name):
+        if node.id not in symbols:
+            raise ValueError(f"undefined symbol: {node.id!r}")
+        return symbols[node.id]
+    if isinstance(node, ast.BinOp) and type(node.op) in _BINOPS:
+        return _BINOPS[type(node.op)](_eval(node.left, symbols),
+                                      _eval(node.right, symbols))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _UNOPS:
+        return _UNOPS[type(node.op)](_eval(node.operand, symbols))
+    raise ValueError(f"unsupported expression element: {ast.dump(node)}")
+
+
+class Symbol:
+    __slots__ = ("name", "expr", "value", "section", "kind", "source")
+
+    def __init__(self, name, expr, value, section, kind, source):
+        self.name = name
+        self.expr = expr
+        self.value = value
+        self.section = section
+        self.kind = kind
+        self.source = source
+
+
+def parse_sources(paths):
+    """Parse the given ``.units`` files, returning an ordered list of Symbol."""
+    symbols = {}           # name -> value, for expression evaluation
+    records = []           # ordered Symbol list
+    section = None
+    kind = "unit"
+    for path in paths:
+        path = Path(path)
+        for lineno, raw in enumerate(path.read_text().splitlines(), 1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("@section"):
+                section = line[len("@section"):].strip() or None
+                continue
+            if line.startswith("@kind"):
+                kind = line[len("@kind"):].strip()
+                if kind not in ("unit", "constant"):
+                    raise ValueError(
+                        f"{path}:{lineno}: @kind must be 'unit' or 'constant', "
+                        f"got {kind!r}")
+                continue
+            if "=" not in line:
+                raise ValueError(f"{path}:{lineno}: not a definition: {raw!r}")
+            name, expr = line.split("=", 1)
+            name = name.strip()
+            expr = expr.split("#", 1)[0].strip()   # allow trailing comment
+            if not name.isidentifier():
+                raise ValueError(f"{path}:{lineno}: invalid name {name!r}")
+            if name in symbols:
+                raise ValueError(f"{path}:{lineno}: duplicate name {name!r}")
+            try:
+                value = _eval(ast.parse(expr, mode="eval"), symbols)
+            except Exception as err:
+                raise ValueError(
+                    f"{path}:{lineno}: cannot evaluate {expr!r}: {err}") from err
+            symbols[name] = value
+            records.append(Symbol(name, expr, value, section, kind, path.name))
+    return records
+
+
+# --------------------------------------------------------------------------
+# Emission helpers.
+# --------------------------------------------------------------------------
+
+def _num(value):
+    """Round-trippable literal for a double; identical text in C++/Py/Jsonnet."""
+    return repr(float(value))
+
+
+def _grouped(records):
+    """Yield (section, [Symbol, ...]) preserving order, coalescing runs."""
+    cur = None
+    bucket = []
+    for r in records:
+        key = (r.section, r.kind)
+        if key != cur and bucket:
+            yield cur, bucket
+            bucket = []
+        cur = key
+        bucket.append(r)
+    if bucket:
+        yield cur, bucket
+
+
+_BANNER = (
+    "GENERATED by dune-units generate/generate.py -- DO NOT EDIT.\n"
+    "Edit the units/*.units sources and re-run the generator instead.\n"
+    "Sources: {sources}"
+)
+
+
+def _banner(sources, prefix):
+    text = _BANNER.format(sources=", ".join(sources))
+    return "\n".join(prefix + line for line in text.splitlines())
+
+
+# --------------------------------------------------------------------------
+# C++ header.
+# --------------------------------------------------------------------------
+
+_CPP_PARSE = r"""
+// ------------------------------------------------------------------------
+// Lookup table of every named symbol (units and constants).
+// ------------------------------------------------------------------------
+inline const std::unordered_map<std::string, double>& table()
+{
+  static const std::unordered_map<std::string, double> t = {
+%(entries)s
+  };
+  return t;
+}
+
+// Resolve one atom: a numeric literal or a known symbol name.
+inline double resolve(const std::string& atom)
+{
+  char* end = nullptr;
+  const double v = std::strtod(atom.c_str(), &end);
+  if (end != atom.c_str() && *end == '\0') {
+    return v;  // it was a number
+  }
+  const auto it = table().find(atom);
+  if (it == table().end()) {
+    throw std::invalid_argument("dune::units::parse: unknown unit '" + atom + "'");
+  }
+  return it->second;
+}
+
+// ------------------------------------------------------------------------
+// parse() -- evaluate a "value and units" string in the system of units.
+//
+// The string is a flat product/quotient of factors, each an optional integer
+// power:
+//
+//     "1.5*cm"     "9.8 m/s^2"     "3 mm*ns"     "2*pi"     "eplus"
+//
+// Whitespace between two factors means multiplication.  Operators '*', '/' and
+// '^' (or '**' for power) are honoured left-to-right; '^' binds to the factor
+// on its left.  Factors are numeric literals or names from table().
+// ------------------------------------------------------------------------
+inline double parse(std::string_view text)
+{
+  std::string s(text);
+  const auto replace_all = [](std::string& in, const std::string& from,
+                              const std::string& to) {
+    for (std::size_t p = in.find(from); p != std::string::npos;
+         p = in.find(from, p + to.size())) {
+      in.replace(p, from.size(), to);
+    }
+  };
+  replace_all(s, "**", " ^ ");
+  replace_all(s, "*", " * ");
+  replace_all(s, "/", " / ");
+  replace_all(s, "^", " ^ ");
+
+  std::vector<std::string> toks;
+  std::istringstream iss(s);
+  for (std::string tk; iss >> tk;) {
+    toks.push_back(tk);
+  }
+  if (toks.empty()) {
+    throw std::invalid_argument("dune::units::parse: empty expression");
+  }
+
+  double acc = 1.0;
+  char op = '*';
+  for (std::size_t i = 0; i < toks.size();) {
+    if (toks[i] == "*" || toks[i] == "/") {
+      op = toks[i][0];
+      ++i;
+      continue;
+    }
+    double v = resolve(toks[i]);
+    ++i;
+    while (i < toks.size() && toks[i] == "^") {
+      ++i;
+      if (i >= toks.size()) {
+        throw std::invalid_argument("dune::units::parse: dangling '^'");
+      }
+      v = std::pow(v, resolve(toks[i]));
+      ++i;
+    }
+    acc = (op == '/') ? acc / v : acc * v;
+    op = '*';  // adjacent factors multiply
+  }
+  return acc;
+}
+"""
+
+
+def emit_cpp(records, sources):
+    out = []
+    out.append("#pragma once")
+    out.append("// " + _banner(sources, "").replace("\n", "\n// "))
+    out.append("")
+    out.append("#include <cmath>")
+    out.append("#include <cstdlib>")
+    out.append("#include <sstream>")
+    out.append("#include <stdexcept>")
+    out.append("#include <string>")
+    out.append("#include <string_view>")
+    out.append("#include <unordered_map>")
+    out.append("#include <vector>")
+    out.append("")
+    out.append("namespace dune::units {")
+    out.append("")
+    for (section, kind), syms in _grouped(records):
+        label = section or ""
+        tag = "" if kind == "unit" else " (constants)"
+        out.append(f"// ---- {label}{tag} ----")
+        for sym in syms:
+            out.append(f"inline constexpr double {sym.name} = {_num(sym.value)};"
+                       f"  // = {sym.expr}")
+        out.append("")
+    entries = "\n".join(f'    {{"{s.name}", {s.name}}},' for s in records)
+    out.append(_CPP_PARSE.strip("\n") % {"entries": entries})
+    out.append("")
+    out.append("}  // namespace dune::units")
+    out.append("")
+    return "\n".join(out)
+
+
+# --------------------------------------------------------------------------
+# Python module.
+# --------------------------------------------------------------------------
+
+_PY_PARSE = r'''
+#: Lookup table of every named symbol (units and constants).
+TABLE = {
+%(entries)s
+}
+
+
+def _resolve(atom):
+    try:
+        return float(atom)
+    except ValueError:
+        pass
+    if atom in TABLE:
+        return TABLE[atom]
+    raise ValueError(f"dune_units.parse: unknown unit {atom!r}")
+
+
+def parse(text):
+    """Evaluate a "value and units" string in the system of units.
+
+    The string is a flat product/quotient of factors, each an optional integer
+    power::
+
+        parse("1.5*cm")     parse("9.8 m/s^2")     parse("3 mm*ns")
+        parse("2*pi")       parse("eplus")
+
+    Whitespace between two factors means multiplication.  Operators ``*``,
+    ``/`` and ``^`` (or ``**`` for power) are honoured left-to-right; ``^``
+    binds to the factor on its left.  Factors are numeric literals or names
+    from :data:`TABLE`.
+    """
+    s = (text.replace("**", " ^ ").replace("*", " * ")
+             .replace("/", " / ").replace("^", " ^ "))
+    toks = s.split()
+    if not toks:
+        raise ValueError("dune_units.parse: empty expression")
+    acc = 1.0
+    op = "*"
+    i = 0
+    n = len(toks)
+    while i < n:
+        t = toks[i]
+        if t in ("*", "/"):
+            op = t
+            i += 1
+            continue
+        v = _resolve(t)
+        i += 1
+        while i < n and toks[i] == "^":
+            i += 1
+            if i >= n:
+                raise ValueError("dune_units.parse: dangling '^'")
+            v = v ** _resolve(toks[i])
+            i += 1
+        acc = acc / v if op == "/" else acc * v
+        op = "*"  # adjacent factors multiply
+    return acc
+'''
+
+
+def emit_python(records, sources):
+    out = []
+    out.append("# " + _banner(sources, "").replace("\n", "\n# "))
+    out.append('"""dune-units: the CLHEP HEP system of units, plus DUNE extras."""')
+    out.append("")
+    names = [s.name for s in records]
+    out.append("__all__ = [")
+    for name in names:
+        out.append(f'    "{name}",')
+    out.append('    "TABLE",')
+    out.append('    "parse",')
+    out.append("]")
+    out.append("")
+    for (section, kind), syms in _grouped(records):
+        label = section or ""
+        tag = "" if kind == "unit" else " (constants)"
+        out.append(f"# ---- {label}{tag} ----")
+        for sym in syms:
+            out.append(f"{sym.name} = {_num(sym.value)}  # = {sym.expr}")
+        out.append("")
+    entries = "\n".join(f'    "{s.name}": {s.name},' for s in records)
+    out.append(_PY_PARSE.strip("\n") % {"entries": entries})
+    out.append("")
+    return "\n".join(out)
+
+
+# --------------------------------------------------------------------------
+# Jsonnet library.
+# --------------------------------------------------------------------------
+
+_JSONNET_PARSE = r"""
+  // Resolve one atom: a numeric literal or a known symbol name.  Symbol values
+  // are looked up as fields of this object (self), which is also what table
+  // enumerates.
+  resolve(atom)::
+    local c = std.substr(atom, 0, 1);
+    if c == '.' || c == '-' || c == '+'
+       || (std.codepoint(c) >= 48 && std.codepoint(c) <= 57)
+    then std.parseJson(atom)
+    else if std.objectHasAll(self, atom) then self[atom]
+    else error 'dune_units.parse: unknown unit ' + atom,
+
+  // parse(text) -- evaluate a "value and units" string in the system of units.
+  //
+  //   u.parse('1.5*cm')   u.parse('9.8 m/s^2')   u.parse('3 mm*ns')
+  //   u.parse('2*pi')     u.parse('eplus')
+  //
+  // Whitespace between two factors means multiplication.  Operators '*', '/'
+  // and '^' (or '**' for power) are honoured left-to-right; '^' binds to the
+  // factor on its left.  Numeric literals must be valid JSON numbers (write
+  // '1.0e-6', not '1.e-6').
+  parse(text)::
+    local root = self;  // pin the units object; 'self' rebinds inside {} below
+    local s0 = std.strReplace(text, '**', ' ^ ');
+    local s1 = std.strReplace(s0, '*', ' * ');
+    local s2 = std.strReplace(s1, '/', ' / ');
+    local s3 = std.strReplace(s2, '^', ' ^ ');
+    local toks = std.filter(function(t) t != '', std.split(s3, ' '));
+    if std.length(toks) == 0 then
+      error 'dune_units.parse: empty expression'
+    else
+      // Read a factor (atom with optional '^ exponent') at index i.
+      // Returns { value, next }.
+      local readFactor(i) =
+        local v0 = root.resolve(toks[i]);
+        if i + 1 < std.length(toks) && toks[i + 1] == '^' then
+          { value: std.pow(v0, root.resolve(toks[i + 2])), next: i + 3 }
+        else
+          { value: v0, next: i + 1 };
+      // Left-to-right fold over factors and '*'/'/' operators.
+      local loop(i, acc, op) =
+        if i >= std.length(toks) then acc
+        else if toks[i] == '*' || toks[i] == '/' then loop(i + 1, acc, toks[i])
+        else
+          local f = readFactor(i);
+          local acc2 = if op == '/' then acc / f.value else acc * f.value;
+          loop(f.next, acc2, '*');  // adjacent factors multiply
+      loop(0, 1.0, '*'),
+"""
+
+
+def emit_jsonnet(records, sources):
+    out = []
+    out.append("// " + _banner(sources, "").replace("\n", "\n// "))
+    out.append("//")
+    out.append("// Import and use:")
+    out.append("//   local u = import 'dune/units.libsonnet';")
+    out.append("//   { drift_time: u.cm / u.parse('1.6 mm/us') }")
+    out.append("{")
+    for (section, kind), syms in _grouped(records):
+        label = section or ""
+        tag = "" if kind == "unit" else " (constants)"
+        out.append(f"  // ---- {label}{tag} ----")
+        for sym in syms:
+            out.append(f"  {sym.name}:: {_num(sym.value)},  // = {sym.expr}")
+        out.append("")
+    out.append("  // Names of every symbol (units and constants), in order.")
+    out.append("  names:: [")
+    for s in records:
+        out.append(f"    '{s.name}',")
+    out.append("  ],")
+    out.append("")
+    out.append("  // Lookup table { name: value } of every named symbol.  '$'")
+    out.append("  // (this file's root object) is used so the comprehension's")
+    out.append("  // 'self' rebinding does not shadow the unit fields.")
+    out.append("  table:: { [n]: $[n] for n in $.names },")
+    out.append(_JSONNET_PARSE.rstrip("\n"))
+    out.append("}")
+    out.append("")
+    return "\n".join(out)
+
+
+# --------------------------------------------------------------------------
+# Driver.
+# --------------------------------------------------------------------------
+
+def main(argv=None):
+    here = Path(__file__).resolve().parent
+    root = here.parent
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[1],
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("sources", nargs="*", type=Path,
+                    default=[root / "units" / "clhep.units",
+                             root / "units" / "dune.units"],
+                    help="source-of-truth .units files (in consumption order)")
+    ap.add_argument("--hpp", type=Path, default=root / "include" / "dune" / "units.hpp")
+    ap.add_argument("--py", type=Path, default=root / "src" / "dune_units" / "__init__.py")
+    ap.add_argument("--jsonnet", type=Path,
+                    default=root / "jsonnet" / "dune" / "units.libsonnet")
+    args = ap.parse_args(argv)
+
+    records = parse_sources(args.sources)
+    names = [p.name for p in args.sources]
+
+    products = {
+        args.hpp: emit_cpp(records, names),
+        args.py: emit_python(records, names),
+        args.jsonnet: emit_jsonnet(records, names),
+    }
+    for path, text in products.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        print(f"wrote {path}  ({len(records)} symbols)")
+
+
+if __name__ == "__main__":
+    main()

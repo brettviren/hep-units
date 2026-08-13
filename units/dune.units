@@ -1,0 +1,64 @@
+# -*- mode: conf -*-
+#
+# dune-units local additions to the CLHEP "HEP System of Units".
+#
+# Unlike units/clhep.units (a frozen mirror of CLHEP/Units/SystemOfUnits.h),
+# THIS file is the place to add:
+#
+#   - units that CLHEP does not provide, and
+#   - constants of nature.
+#
+# It is consumed AFTER clhep.units, so every symbol defined there (mm, ns, MeV,
+# eplus, joule, second, kelvin, mole, twopi, ...) is available in the
+# expressions below.  The resulting values are all expressed in the CLHEP
+# system of units.
+#
+# Format reminder (see ../README.md):
+#   "@section <text>"        grouping label
+#   "@kind unit|constant"    tags the following definitions
+#   "NAME = EXPRESSION"       arithmetic over numeric literals and prior names
+
+# ---------------------------------------------------------------------------
+# Extra units not present in CLHEP.
+# ---------------------------------------------------------------------------
+@kind unit
+
+@section Imperial length
+inch = 25.4*mm
+foot = 12*inch
+yard = 3*foot
+mile = 5280*foot
+
+@section Time (extra)
+week = 7*day
+microsecond2 = microsecond*microsecond
+
+@section Energy (extra)
+erg = 1.e-7*joule
+kilowatt = 1.e+3*watt
+kilowatt_hour = kilowatt*hour
+
+# ---------------------------------------------------------------------------
+# Constants of nature, expressed in the CLHEP system of units.
+# Values follow CLHEP/Units/PhysicalConstants.h (CODATA-based).
+# ---------------------------------------------------------------------------
+@kind constant
+
+@section Fundamental constants
+Avogadro = 6.02214076e+23/mole
+c_light = 2.99792458e+8 * m/s
+c_squared = c_light*c_light
+h_Planck = 6.62607015e-34 * joule*s
+hbar_Planck = h_Planck/twopi
+hbarc = hbar_Planck*c_light
+k_Boltzmann = 1.380649e-23 * joule/kelvin
+
+@section Electromagnetic constants
+electron_charge = -eplus
+fine_structure_const = 7.2973525693e-3
+
+@section Particle masses (energy equivalent)
+electron_mass_c2 = 0.51099895000 * MeV
+proton_mass_c2 = 938.27208816 * MeV
+neutron_mass_c2 = 939.56542052 * MeV
+amu_c2 = 931.49410242 * MeV
