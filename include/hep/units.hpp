@@ -7,12 +7,13 @@
 
 #pragma once
 
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -422,79 +423,232 @@ inline const std::unordered_map<std::string, double>& table()
   return t;
 }
 
-// Resolve one atom: a numeric literal or a known symbol name.
-inline double resolve(const std::string& atom)
+// Resolve a symbol name in table(); nullptr if unknown.
+inline const double* lookup(std::string_view name)
 {
-  char* end = nullptr;
-  const double v = std::strtod(atom.c_str(), &end);
-  if (end != atom.c_str() && *end == '\0') {
-    return v;  // it was a number
-  }
-  const auto it = table().find(atom);
-  if (it == table().end()) {
-    throw std::invalid_argument("hep::units::parse: unknown unit '" + atom + "'");
-  }
-  return it->second;
+  const auto it = table().find(std::string(name));
+  return it == table().end() ? nullptr : &it->second;
 }
 
 // ------------------------------------------------------------------------
-// parse() -- evaluate a "value and units" string in the system of units.
+// parse() -- evaluate an arithmetic expression of numbers, units and
+// constants in the system of units.
 //
-// The string is a flat product/quotient of factors, each an optional integer
-// power:
+//     "1.5*cm"   "1.5 cm"   "9.8 m/s^2"   "2*pi"   "0.5*0.02"   "2.3/2"
+//     "(1+2)*mm"   "-1.5 cm"   "s^-1"   "sqrt(2)*cm"   "500*V/cm"
 //
-//     "1.5*cm"     "9.8 m/s^2"     "3 mm*ns"     "2*pi"     "eplus"
+// Grammar (lowest to highest precedence):
 //
-// Whitespace between two factors means multiplication.  Operators '*', '/' and
-// '^' (or '**' for power) are honoured left-to-right; '^' binds to the factor
-// on its left.  Factors are numeric literals or names from table().
+//     expr    := term { ('+' | '-') term }
+//     term    := unary { ('*' | '/' | <whitespace>) unary }
+//     unary   := ('+' | '-') unary | power
+//     power   := primary [ ('^' | '**') unary ]          (right-associative)
+//     primary := number | name | name '(' expr {',' expr} ')' | '(' expr ')'
+//
+// Two operands side by side (whitespace) multiply, so "1.5 cm" is 1.5*cm.
+// '^' binds tighter than a sign: "-2^2" is -4.  A name is looked up first in
+// the caller's symbols (parse_with / parse(text, symbols)), then in table().
+// Functions: sqrt sin cos tan asin acos atan exp log pow abs min max.
+// Errors throw std::invalid_argument.
 // ------------------------------------------------------------------------
+namespace detail {
+
+template <class Lookup>
+class Parser {
+public:
+  Parser(std::string_view text, Lookup& extra) : s_(text), extra_(extra) {}
+
+  double run()
+  {
+    skip();
+    if (i_ >= s_.size()) { fail("empty expression"); }
+    const double v = expr();
+    skip();
+    if (i_ < s_.size()) { fail("unexpected '" + std::string(1, s_[i_]) + "'"); }
+    return v;
+  }
+
+private:
+  std::string_view s_;
+  Lookup& extra_;
+  std::size_t i_ = 0;
+
+  [[noreturn]] void fail(const std::string& what) const
+  {
+    throw std::invalid_argument("hep::units::parse: " + what + " at column "
+                                + std::to_string(i_) + " of \"" + std::string(s_) + "\"");
+  }
+
+  void skip()
+  {
+    while (i_ < s_.size() && std::isspace(static_cast<unsigned char>(s_[i_]))) { ++i_; }
+  }
+
+  static bool name_start(char c) { return std::isalpha(static_cast<unsigned char>(c)) || c == '_'; }
+  static bool name_char(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
+  static bool digit(char c) { return c >= '0' && c <= '9'; }
+
+  bool at(char c)
+  {
+    skip();
+    return i_ < s_.size() && s_[i_] == c;
+  }
+  bool at_power()
+  {
+    skip();
+    return i_ < s_.size() && (s_[i_] == '^' || (s_[i_] == '*' && i_ + 1 < s_.size() && s_[i_ + 1] == '*'));
+  }
+  // Does an operand start here (for implicit multiplication)?
+  bool at_operand()
+  {
+    skip();
+    if (i_ >= s_.size()) { return false; }
+    const char c = s_[i_];
+    return digit(c) || c == '.' || c == '(' || name_start(c);
+  }
+
+  double expr()
+  {
+    double v = term();
+    while (true) {
+      if (at('+')) { ++i_; v += term(); }
+      else if (at('-')) { ++i_; v -= term(); }
+      else { return v; }
+    }
+  }
+
+  double term()
+  {
+    double v = unary();
+    while (true) {
+      if (at('*') && !at_power()) { ++i_; v *= unary(); }
+      else if (at('/')) { ++i_; v /= unary(); }
+      else if (at_operand()) { v *= unary(); }
+      else { return v; }
+    }
+  }
+
+  double unary()
+  {
+    if (at('+')) { ++i_; return unary(); }
+    if (at('-')) { ++i_; return -unary(); }
+    return power();
+  }
+
+  double power()
+  {
+    const double b = primary();
+    if (at_power()) {
+      i_ += (s_[i_] == '^') ? 1 : 2;
+      return std::pow(b, unary());
+    }
+    return b;
+  }
+
+  double number()
+  {
+    const std::size_t b = i_;
+    while (i_ < s_.size() && digit(s_[i_])) { ++i_; }
+    if (i_ < s_.size() && s_[i_] == '.') {
+      ++i_;
+      while (i_ < s_.size() && digit(s_[i_])) { ++i_; }
+    }
+    if (i_ < s_.size() && (s_[i_] == 'e' || s_[i_] == 'E')) {
+      std::size_t k = i_ + 1;
+      if (k < s_.size() && (s_[k] == '+' || s_[k] == '-')) { ++k; }
+      if (k < s_.size() && digit(s_[k])) {
+        i_ = k;
+        while (i_ < s_.size() && digit(s_[i_])) { ++i_; }
+      }
+    }
+    const std::string text(s_.substr(b, i_ - b));
+    if (text == ".") { fail("bad number"); }
+    return std::strtod(text.c_str(), nullptr);
+  }
+
+  double call(const std::string& f, const std::vector<double>& a)
+  {
+    const auto need = [&](std::size_t n) {
+      if (a.size() != n) { fail(f + "() takes " + std::to_string(n) + " argument(s)"); }
+    };
+    if (f == "pow") { need(2); return std::pow(a[0], a[1]); }
+    if (f == "min") { need(2); return std::fmin(a[0], a[1]); }
+    if (f == "max") { need(2); return std::fmax(a[0], a[1]); }
+    need(1);
+    const double x = a[0];
+    if (f == "sqrt") { return std::sqrt(x); }
+    if (f == "sin") { return std::sin(x); }
+    if (f == "cos") { return std::cos(x); }
+    if (f == "tan") { return std::tan(x); }
+    if (f == "asin") { return std::asin(x); }
+    if (f == "acos") { return std::acos(x); }
+    if (f == "atan") { return std::atan(x); }
+    if (f == "exp") { return std::exp(x); }
+    if (f == "log") { return std::log(x); }
+    if (f == "abs") { return std::fabs(x); }
+    fail("unknown function '" + f + "'");
+  }
+
+  double primary()
+  {
+    skip();
+    if (i_ >= s_.size()) { fail("missing operand"); }
+    const char c = s_[i_];
+    if (c == '(') {
+      ++i_;
+      const double v = expr();
+      if (!at(')')) { fail("missing ')'"); }
+      ++i_;
+      return v;
+    }
+    if (digit(c) || c == '.') { return number(); }
+    if (name_start(c)) {
+      const std::size_t b = i_;
+      while (i_ < s_.size() && name_char(s_[i_])) { ++i_; }
+      const std::string name(s_.substr(b, i_ - b));
+      if (at('(')) {
+        ++i_;
+        std::vector<double> args{expr()};
+        while (at(',')) { ++i_; args.push_back(expr()); }
+        if (!at(')')) { fail("missing ')'"); }
+        ++i_;
+        return call(name, args);
+      }
+      if (const double* v = extra_(std::string_view(name))) { return *v; }
+      if (const double* v = lookup(name)) { return *v; }
+      fail("unknown unit '" + name + "'");
+    }
+    fail("unexpected '" + std::string(1, c) + "'");
+  }
+};
+
+}  // namespace detail
+
+// Evaluate `text` with an extra symbol lookup tried before table():
+// `extra(std::string_view name)` returns a `const double*`, or nullptr when
+// it does not know the name.
+template <class Lookup>
+double parse_with(std::string_view text, Lookup&& extra)
+{
+  detail::Parser<std::remove_reference_t<Lookup>> p(text, extra);
+  return p.run();
+}
+
+// Evaluate `text` with extra named values (e.g. a GDML file's <constant>s),
+// which take precedence over table().
+inline double parse(std::string_view text,
+                    const std::unordered_map<std::string, double>& symbols)
+{
+  return parse_with(text, [&symbols](std::string_view name) -> const double* {
+    const auto it = symbols.find(std::string(name));
+    return it == symbols.end() ? nullptr : &it->second;
+  });
+}
+
+// Evaluate `text` with table() only.
 inline double parse(std::string_view text)
 {
-  std::string s(text);
-  const auto replace_all = [](std::string& in, const std::string& from,
-                              const std::string& to) {
-    for (std::size_t p = in.find(from); p != std::string::npos;
-         p = in.find(from, p + to.size())) {
-      in.replace(p, from.size(), to);
-    }
-  };
-  replace_all(s, "**", " ^ ");
-  replace_all(s, "*", " * ");
-  replace_all(s, "/", " / ");
-  replace_all(s, "^", " ^ ");
-
-  std::vector<std::string> toks;
-  std::istringstream iss(s);
-  for (std::string tk; iss >> tk;) {
-    toks.push_back(tk);
-  }
-  if (toks.empty()) {
-    throw std::invalid_argument("hep::units::parse: empty expression");
-  }
-
-  double acc = 1.0;
-  char op = '*';
-  for (std::size_t i = 0; i < toks.size();) {
-    if (toks[i] == "*" || toks[i] == "/") {
-      op = toks[i][0];
-      ++i;
-      continue;
-    }
-    double v = resolve(toks[i]);
-    ++i;
-    while (i < toks.size() && toks[i] == "^") {
-      ++i;
-      if (i >= toks.size()) {
-        throw std::invalid_argument("hep::units::parse: dangling '^'");
-      }
-      v = std::pow(v, resolve(toks[i]));
-      ++i;
-    }
-    acc = (op == '/') ? acc / v : acc * v;
-    op = '*';  // adjacent factors multiply
-  }
-  return acc;
+  return parse_with(text, [](std::string_view) -> const double* { return nullptr; });
 }
 
 }  // namespace hep::units

@@ -1,6 +1,6 @@
 [project]
 name = "hep-units"
-version = "0.1.0"
+version = "0.2.0"
 description = "The CLHEP HEP system of units as a C++ header, Python module and Jsonnet library, from a single source of truth"
 readme = "README.md"
 authors = [

@@ -43,6 +43,34 @@ def test_table():
     assert u.TABLE["cm"] == u.cm
 
 
+def load_cases(path=Path(__file__).resolve().parent / "parse-cases.txt"):
+    """Return [(expression, symbols, expected)] from parse-cases.txt."""
+    cases = []
+    for line in path.read_text().splitlines():
+        if not line.strip() and "|" not in line or line.startswith("#"):
+            continue
+        expr, syms, expected = line.split("|")
+        symbols = {}
+        for kv in filter(None, syms.strip().split(";")):
+            k, v = kv.split("=")
+            symbols[k.strip()] = float(v)
+        cases.append((expr.strip(), symbols, expected.strip()))
+    return cases
+
+
+def test_parse_cases():
+    for expr, syms, expected in load_cases():
+        if expected == "!error":
+            try:
+                got = u.parse(expr, syms)
+            except ValueError:
+                continue
+            raise AssertionError(f"parse({expr!r}) = {got}, expected an error")
+        want = eval(expected, {"u": u})
+        got = u.parse(expr, syms)
+        assert math.isclose(got, want, rel_tol=1e-12, abs_tol=1e-300), (expr, got, want)
+
+
 def test_unknown_unit_raises():
     try:
         u.parse("1.0 furlong")

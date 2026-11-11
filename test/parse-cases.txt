@@ -1,0 +1,71 @@
+# Shared parse() cases, used by test_python.py (correctness) and
+# test_parity.py (C++ / Python / Jsonnet give identical results).
+#
+# Format:  expression | symbols | expected
+#   symbols:  name=value;name=value   (may be empty)
+#   expected: a Python expression over the hep_units module `u`,
+#             or "!error" when parse() must reject the expression.
+#
+# --- the original flat product/quotient grammar ---
+1.5*cm                ||  1.5*u.cm
+1.5 cm                ||  1.5*u.cm
+cm                    ||  u.cm
+2*pi                  ||  2*u.pi
+eplus                 ||  1.0
+9.8 m/s^2             ||  9.8*u.m/(u.s*u.s)
+1.6 mm/us             ||  1.6*u.mm/u.us
+3 mm*ns               ||  3*u.mm*u.ns
+1/s                   ||  1/u.s
+1/s s                 ||  1/u.s*u.s
+2**3                  ||  8.0
+# --- arithmetic needed by GDML attributes ---
+0.5*0.02              ||  0.5*0.02
+2.3/2                 ||  2.3/2
+(1+2)*mm              ||  3*u.mm
+2 cm + 3 mm           ||  2*u.cm + 3*u.mm
+2 - 3                 ||  -1.0
+-1.5 cm               ||  -1.5*u.cm
++4                    ||  4.0
+2*(3-5)/4             ||  2*(3-5)/4
+(2)(3)                ||  6.0
+2(3)                  ||  6.0
+500*V/cm             ||  !error
+# (V is not a CLHEP/hep-units symbol; GDML Efield auxvalues use it.)
+500*volt/cm           ||  500*u.volt/u.cm
+# --- numbers ---
+1e-3*m                ||  1e-3*u.m
+1.5E+2 mm             ||  150.0
+1.                    ||  1.0
+.5                    ||  0.5
+1.e3                  ||  1000.0
+007                   ||  7.0
+# --- powers ---
+s^-1                  ||  1/u.s
+-2^2                  ||  -4.0
+2^3^2                 ||  512.0
+2^-2                  ||  0.25
+# --- caller symbols (e.g. GDML <constant>s) ---
+0.5*kWireDiam         | kWireDiam=0.015 | 0.5*0.015
+kTPCWidth/2 + 1       | kTPCWidth=10 | 6.0
+EWProfileLength*cm    | EWProfileLength=2.5 | 2.5*u.cm
+m                     | m=5 | 5.0
+a*b                   | a=2;b=3 | 6.0
+# --- functions ---
+sqrt(2)*cm            ||  2**0.5*u.cm
+pow(2, 10)            ||  1024.0
+min(1, 2) + max(1, 2) ||  3.0
+abs(-3)               ||  3.0
+cos(0)                ||  1.0
+exp(0)                ||  1.0
+log(1)                ||  0.0
+atan(1)*4             ||  3.141592653589793
+# --- errors ---
+                      ||  !error
+1 +                   ||  !error
+(1                    ||  !error
+1)                    ||  !error
+furlong               ||  !error
+foo(1)                ||  !error
+sqrt(1, 2)            ||  !error
+1 $ 2                 ||  !error
+.                     ||  !error

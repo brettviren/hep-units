@@ -276,79 +276,232 @@ inline const std::unordered_map<std::string, double>& table()
   return t;
 }
 
-// Resolve one atom: a numeric literal or a known symbol name.
-inline double resolve(const std::string& atom)
+// Resolve a symbol name in table(); nullptr if unknown.
+inline const double* lookup(std::string_view name)
 {
-  char* end = nullptr;
-  const double v = std::strtod(atom.c_str(), &end);
-  if (end != atom.c_str() && *end == '\0') {
-    return v;  // it was a number
-  }
-  const auto it = table().find(atom);
-  if (it == table().end()) {
-    throw std::invalid_argument("hep::units::parse: unknown unit '" + atom + "'");
-  }
-  return it->second;
+  const auto it = table().find(std::string(name));
+  return it == table().end() ? nullptr : &it->second;
 }
 
 // ------------------------------------------------------------------------
-// parse() -- evaluate a "value and units" string in the system of units.
+// parse() -- evaluate an arithmetic expression of numbers, units and
+// constants in the system of units.
 //
-// The string is a flat product/quotient of factors, each an optional integer
-// power:
+//     "1.5*cm"   "1.5 cm"   "9.8 m/s^2"   "2*pi"   "0.5*0.02"   "2.3/2"
+//     "(1+2)*mm"   "-1.5 cm"   "s^-1"   "sqrt(2)*cm"   "500*V/cm"
 //
-//     "1.5*cm"     "9.8 m/s^2"     "3 mm*ns"     "2*pi"     "eplus"
+// Grammar (lowest to highest precedence):
 //
-// Whitespace between two factors means multiplication.  Operators '*', '/' and
-// '^' (or '**' for power) are honoured left-to-right; '^' binds to the factor
-// on its left.  Factors are numeric literals or names from table().
+//     expr    := term { ('+' | '-') term }
+//     term    := unary { ('*' | '/' | <whitespace>) unary }
+//     unary   := ('+' | '-') unary | power
+//     power   := primary [ ('^' | '**') unary ]          (right-associative)
+//     primary := number | name | name '(' expr {',' expr} ')' | '(' expr ')'
+//
+// Two operands side by side (whitespace) multiply, so "1.5 cm" is 1.5*cm.
+// '^' binds tighter than a sign: "-2^2" is -4.  A name is looked up first in
+// the caller's symbols (parse_with / parse(text, symbols)), then in table().
+// Functions: sqrt sin cos tan asin acos atan exp log pow abs min max.
+// Errors throw std::invalid_argument.
 // ------------------------------------------------------------------------
+namespace detail {
+
+template <class Lookup>
+class Parser {
+public:
+  Parser(std::string_view text, Lookup& extra) : s_(text), extra_(extra) {}
+
+  double run()
+  {
+    skip();
+    if (i_ >= s_.size()) { fail("empty expression"); }
+    const double v = expr();
+    skip();
+    if (i_ < s_.size()) { fail("unexpected '" + std::string(1, s_[i_]) + "'"); }
+    return v;
+  }
+
+private:
+  std::string_view s_;
+  Lookup& extra_;
+  std::size_t i_ = 0;
+
+  [[noreturn]] void fail(const std::string& what) const
+  {
+    throw std::invalid_argument("hep::units::parse: " + what + " at column "
+                                + std::to_string(i_) + " of \"" + std::string(s_) + "\"");
+  }
+
+  void skip()
+  {
+    while (i_ < s_.size() && std::isspace(static_cast<unsigned char>(s_[i_]))) { ++i_; }
+  }
+
+  static bool name_start(char c) { return std::isalpha(static_cast<unsigned char>(c)) || c == '_'; }
+  static bool name_char(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
+  static bool digit(char c) { return c >= '0' && c <= '9'; }
+
+  bool at(char c)
+  {
+    skip();
+    return i_ < s_.size() && s_[i_] == c;
+  }
+  bool at_power()
+  {
+    skip();
+    return i_ < s_.size() && (s_[i_] == '^' || (s_[i_] == '*' && i_ + 1 < s_.size() && s_[i_ + 1] == '*'));
+  }
+  // Does an operand start here (for implicit multiplication)?
+  bool at_operand()
+  {
+    skip();
+    if (i_ >= s_.size()) { return false; }
+    const char c = s_[i_];
+    return digit(c) || c == '.' || c == '(' || name_start(c);
+  }
+
+  double expr()
+  {
+    double v = term();
+    while (true) {
+      if (at('+')) { ++i_; v += term(); }
+      else if (at('-')) { ++i_; v -= term(); }
+      else { return v; }
+    }
+  }
+
+  double term()
+  {
+    double v = unary();
+    while (true) {
+      if (at('*') && !at_power()) { ++i_; v *= unary(); }
+      else if (at('/')) { ++i_; v /= unary(); }
+      else if (at_operand()) { v *= unary(); }
+      else { return v; }
+    }
+  }
+
+  double unary()
+  {
+    if (at('+')) { ++i_; return unary(); }
+    if (at('-')) { ++i_; return -unary(); }
+    return power();
+  }
+
+  double power()
+  {
+    const double b = primary();
+    if (at_power()) {
+      i_ += (s_[i_] == '^') ? 1 : 2;
+      return std::pow(b, unary());
+    }
+    return b;
+  }
+
+  double number()
+  {
+    const std::size_t b = i_;
+    while (i_ < s_.size() && digit(s_[i_])) { ++i_; }
+    if (i_ < s_.size() && s_[i_] == '.') {
+      ++i_;
+      while (i_ < s_.size() && digit(s_[i_])) { ++i_; }
+    }
+    if (i_ < s_.size() && (s_[i_] == 'e' || s_[i_] == 'E')) {
+      std::size_t k = i_ + 1;
+      if (k < s_.size() && (s_[k] == '+' || s_[k] == '-')) { ++k; }
+      if (k < s_.size() && digit(s_[k])) {
+        i_ = k;
+        while (i_ < s_.size() && digit(s_[i_])) { ++i_; }
+      }
+    }
+    const std::string text(s_.substr(b, i_ - b));
+    if (text == ".") { fail("bad number"); }
+    return std::strtod(text.c_str(), nullptr);
+  }
+
+  double call(const std::string& f, const std::vector<double>& a)
+  {
+    const auto need = [&](std::size_t n) {
+      if (a.size() != n) { fail(f + "() takes " + std::to_string(n) + " argument(s)"); }
+    };
+    if (f == "pow") { need(2); return std::pow(a[0], a[1]); }
+    if (f == "min") { need(2); return std::fmin(a[0], a[1]); }
+    if (f == "max") { need(2); return std::fmax(a[0], a[1]); }
+    need(1);
+    const double x = a[0];
+    if (f == "sqrt") { return std::sqrt(x); }
+    if (f == "sin") { return std::sin(x); }
+    if (f == "cos") { return std::cos(x); }
+    if (f == "tan") { return std::tan(x); }
+    if (f == "asin") { return std::asin(x); }
+    if (f == "acos") { return std::acos(x); }
+    if (f == "atan") { return std::atan(x); }
+    if (f == "exp") { return std::exp(x); }
+    if (f == "log") { return std::log(x); }
+    if (f == "abs") { return std::fabs(x); }
+    fail("unknown function '" + f + "'");
+  }
+
+  double primary()
+  {
+    skip();
+    if (i_ >= s_.size()) { fail("missing operand"); }
+    const char c = s_[i_];
+    if (c == '(') {
+      ++i_;
+      const double v = expr();
+      if (!at(')')) { fail("missing ')'"); }
+      ++i_;
+      return v;
+    }
+    if (digit(c) || c == '.') { return number(); }
+    if (name_start(c)) {
+      const std::size_t b = i_;
+      while (i_ < s_.size() && name_char(s_[i_])) { ++i_; }
+      const std::string name(s_.substr(b, i_ - b));
+      if (at('(')) {
+        ++i_;
+        std::vector<double> args{expr()};
+        while (at(',')) { ++i_; args.push_back(expr()); }
+        if (!at(')')) { fail("missing ')'"); }
+        ++i_;
+        return call(name, args);
+      }
+      if (const double* v = extra_(std::string_view(name))) { return *v; }
+      if (const double* v = lookup(name)) { return *v; }
+      fail("unknown unit '" + name + "'");
+    }
+    fail("unexpected '" + std::string(1, c) + "'");
+  }
+};
+
+}  // namespace detail
+
+// Evaluate `text` with an extra symbol lookup tried before table():
+// `extra(std::string_view name)` returns a `const double*`, or nullptr when
+// it does not know the name.
+template <class Lookup>
+double parse_with(std::string_view text, Lookup&& extra)
+{
+  detail::Parser<std::remove_reference_t<Lookup>> p(text, extra);
+  return p.run();
+}
+
+// Evaluate `text` with extra named values (e.g. a GDML file's <constant>s),
+// which take precedence over table().
+inline double parse(std::string_view text,
+                    const std::unordered_map<std::string, double>& symbols)
+{
+  return parse_with(text, [&symbols](std::string_view name) -> const double* {
+    const auto it = symbols.find(std::string(name));
+    return it == symbols.end() ? nullptr : &it->second;
+  });
+}
+
+// Evaluate `text` with table() only.
 inline double parse(std::string_view text)
 {
-  std::string s(text);
-  const auto replace_all = [](std::string& in, const std::string& from,
-                              const std::string& to) {
-    for (std::size_t p = in.find(from); p != std::string::npos;
-         p = in.find(from, p + to.size())) {
-      in.replace(p, from.size(), to);
-    }
-  };
-  replace_all(s, "**", " ^ ");
-  replace_all(s, "*", " * ");
-  replace_all(s, "/", " / ");
-  replace_all(s, "^", " ^ ");
-
-  std::vector<std::string> toks;
-  std::istringstream iss(s);
-  for (std::string tk; iss >> tk;) {
-    toks.push_back(tk);
-  }
-  if (toks.empty()) {
-    throw std::invalid_argument("hep::units::parse: empty expression");
-  }
-
-  double acc = 1.0;
-  char op = '*';
-  for (std::size_t i = 0; i < toks.size();) {
-    if (toks[i] == "*" || toks[i] == "/") {
-      op = toks[i][0];
-      ++i;
-      continue;
-    }
-    double v = resolve(toks[i]);
-    ++i;
-    while (i < toks.size() && toks[i] == "^") {
-      ++i;
-      if (i >= toks.size()) {
-        throw std::invalid_argument("hep::units::parse: dangling '^'");
-      }
-      v = std::pow(v, resolve(toks[i]));
-      ++i;
-    }
-    acc = (op == '/') ? acc / v : acc * v;
-    op = '*';  // adjacent factors multiply
-  }
-  return acc;
+  return parse_with(text, [](std::string_view) -> const double* { return nullptr; });
 }
 """
 
@@ -359,12 +512,13 @@ def emit_cpp(records, sources):
     out.append("")
     out.append("#pragma once")
     out.append("")
+    out.append("#include <cctype>")
     out.append("#include <cmath>")
     out.append("#include <cstdlib>")
-    out.append("#include <sstream>")
     out.append("#include <stdexcept>")
     out.append("#include <string>")
     out.append("#include <string_view>")
+    out.append("#include <type_traits>")
     out.append("#include <unordered_map>")
     out.append("#include <vector>")
     out.append("")
@@ -397,57 +551,182 @@ TABLE = {
 %(entries)s
 }
 
+import math as _math
 
-def _resolve(atom):
-    try:
-        return float(atom)
-    except ValueError:
-        pass
-    if atom in TABLE:
-        return TABLE[atom]
-    raise ValueError(f"hep_units.parse: unknown unit {atom!r}")
+_FUNCS = {
+    "sqrt": (1, _math.sqrt), "sin": (1, _math.sin), "cos": (1, _math.cos),
+    "tan": (1, _math.tan), "asin": (1, _math.asin), "acos": (1, _math.acos),
+    "atan": (1, _math.atan), "exp": (1, _math.exp), "log": (1, _math.log),
+    "abs": (1, abs), "pow": (2, _math.pow), "min": (2, min), "max": (2, max),
+}
 
 
-def parse(text):
-    """Evaluate a "value and units" string in the system of units.
+class _Parser:
+    def __init__(self, text, symbols):
+        self.s = text
+        self.i = 0
+        self.symbols = symbols or {}
 
-    The string is a flat product/quotient of factors, each an optional integer
-    power::
+    def fail(self, what):
+        raise ValueError(f"hep_units.parse: {what} at column {self.i} of {self.s!r}")
 
-        parse("1.5*cm")     parse("9.8 m/s^2")     parse("3 mm*ns")
-        parse("2*pi")       parse("eplus")
+    def skip(self):
+        while self.i < len(self.s) and self.s[self.i].isspace():
+            self.i += 1
 
-    Whitespace between two factors means multiplication.  Operators ``*``,
-    ``/`` and ``^`` (or ``**`` for power) are honoured left-to-right; ``^``
-    binds to the factor on its left.  Factors are numeric literals or names
-    from :data:`TABLE`.
+    def at(self, c):
+        self.skip()
+        return self.s.startswith(c, self.i)
+
+    def at_power(self):
+        return self.at("^") or self.at("**")
+
+    def at_operand(self):
+        self.skip()
+        if self.i >= len(self.s):
+            return False
+        c = self.s[self.i]
+        return c.isdigit() or c == "." or c == "(" or c.isalpha() or c == "_"
+
+    def run(self):
+        self.skip()
+        if self.i >= len(self.s):
+            self.fail("empty expression")
+        v = self.expr()
+        self.skip()
+        if self.i < len(self.s):
+            self.fail(f"unexpected {self.s[self.i]!r}")
+        return v
+
+    def expr(self):
+        v = self.term()
+        while True:
+            if self.at("+"):
+                self.i += 1
+                v += self.term()
+            elif self.at("-"):
+                self.i += 1
+                v -= self.term()
+            else:
+                return v
+
+    def term(self):
+        v = self.unary()
+        while True:
+            if self.at("*") and not self.at("**"):
+                self.i += 1
+                v *= self.unary()
+            elif self.at("/"):
+                self.i += 1
+                v /= self.unary()
+            elif self.at_operand():
+                v *= self.unary()
+            else:
+                return v
+
+    def unary(self):
+        if self.at("+"):
+            self.i += 1
+            return self.unary()
+        if self.at("-"):
+            self.i += 1
+            return -self.unary()
+        return self.power()
+
+    def power(self):
+        b = self.primary()
+        if self.at_power():
+            self.i += 1 if self.s[self.i] == "^" else 2
+            return b ** self.unary()
+        return b
+
+    def number(self):
+        s, b = self.s, self.i
+        n = len(s)
+        while self.i < n and s[self.i].isdigit():
+            self.i += 1
+        if self.i < n and s[self.i] == ".":
+            self.i += 1
+            while self.i < n and s[self.i].isdigit():
+                self.i += 1
+        if self.i < n and s[self.i] in "eE":
+            k = self.i + 1
+            if k < n and s[k] in "+-":
+                k += 1
+            if k < n and s[k].isdigit():
+                self.i = k
+                while self.i < n and s[self.i].isdigit():
+                    self.i += 1
+        text = s[b:self.i]
+        if text == ".":
+            self.fail("bad number")
+        return float(text)
+
+    def primary(self):
+        self.skip()
+        if self.i >= len(self.s):
+            self.fail("missing operand")
+        c = self.s[self.i]
+        if c == "(":
+            self.i += 1
+            v = self.expr()
+            if not self.at(")"):
+                self.fail("missing ')'")
+            self.i += 1
+            return v
+        if c.isdigit() or c == ".":
+            return self.number()
+        if c.isalpha() or c == "_":
+            b = self.i
+            while self.i < len(self.s) and (self.s[self.i].isalnum() or self.s[self.i] == "_"):
+                self.i += 1
+            name = self.s[b:self.i]
+            if self.at("("):
+                self.i += 1
+                args = [self.expr()]
+                while self.at(","):
+                    self.i += 1
+                    args.append(self.expr())
+                if not self.at(")"):
+                    self.fail("missing ')'")
+                self.i += 1
+                if name not in _FUNCS:
+                    self.fail(f"unknown function {name!r}")
+                nargs, fn = _FUNCS[name]
+                if len(args) != nargs:
+                    self.fail(f"{name}() takes {nargs} argument(s)")
+                return float(fn(*args))
+            if name in self.symbols:
+                return self.symbols[name]
+            if name in TABLE:
+                return TABLE[name]
+            self.fail(f"unknown unit {name!r}")
+        self.fail(f"unexpected {c!r}")
+
+
+def parse(text, symbols=None):
+    """Evaluate an arithmetic expression of numbers, units and constants.
+
+    ::
+
+        parse("1.5*cm")   parse("1.5 cm")   parse("9.8 m/s^2")   parse("2*pi")
+        parse("0.5*0.02") parse("(1+2)*mm") parse("s^-1")  parse("sqrt(2)*cm")
+
+    Grammar (lowest to highest precedence)::
+
+        expr    := term { ('+' | '-') term }
+        term    := unary { ('*' | '/' | <whitespace>) unary }
+        unary   := ('+' | '-') unary | power
+        power   := primary [ ('^' | '**') unary ]          (right-associative)
+        primary := number | name | name '(' expr {',' expr} ')' | '(' expr ')'
+
+    Two operands side by side multiply ("1.5 cm" is 1.5*cm); '^' binds
+    tighter than a sign ("-2^2" is -4).  Names are looked up first in
+    ``symbols`` (a mapping, e.g. a GDML file's constants), then in
+    :data:`TABLE`.  Functions: sqrt sin cos tan asin acos atan exp log pow
+    abs min max.  Errors raise ValueError.
     """
-    s = (text.replace("**", " ^ ").replace("*", " * ")
-             .replace("/", " / ").replace("^", " ^ "))
-    toks = s.split()
-    if not toks:
-        raise ValueError("hep_units.parse: empty expression")
-    acc = 1.0
-    op = "*"
-    i = 0
-    n = len(toks)
-    while i < n:
-        t = toks[i]
-        if t in ("*", "/"):
-            op = t
-            i += 1
-            continue
-        v = _resolve(t)
-        i += 1
-        while i < n and toks[i] == "^":
-            i += 1
-            if i >= n:
-                raise ValueError("hep_units.parse: dangling '^'")
-            v = v ** _resolve(toks[i])
-            i += 1
-        acc = acc / v if op == "/" else acc * v
-        op = "*"  # adjacent factors multiply
-    return acc
+    return _Parser(text, symbols).run()
 '''
 
 
@@ -483,53 +762,136 @@ def emit_python(records, sources):
 # --------------------------------------------------------------------------
 
 _JSONNET_PARSE = r"""
-  // Resolve one atom: a numeric literal or a known symbol name.  Symbol values
-  // are looked up as fields of this object (self), which is also what table
-  // enumerates.
+  // Resolve one atom: a numeric literal or a known symbol name (kept for
+  // compatibility; parse() does its own lexing).
   resolve(atom)::
     local c = std.substr(atom, 0, 1);
     if c == '.' || c == '-' || c == '+'
        || (std.codepoint(c) >= 48 && std.codepoint(c) <= 57)
     then std.parseJson(atom)
-    else if std.objectHasAll(self, atom) then self[atom]
+    else if std.objectHas($.table, atom) then $.table[atom]
     else error 'hep_units.parse: unknown unit ' + atom,
 
-  // parse(text) -- evaluate a "value and units" string in the system of units.
+  // parse(text, symbols={}) -- evaluate an arithmetic expression of numbers,
+  // units and constants in the system of units.
   //
-  //   u.parse('1.5*cm')   u.parse('9.8 m/s^2')   u.parse('3 mm*ns')
-  //   u.parse('2*pi')     u.parse('eplus')
+  //   u.parse('1.5*cm')  u.parse('1.5 cm')  u.parse('9.8 m/s^2')  u.parse('2*pi')
+  //   u.parse('0.5*0.02')  u.parse('(1+2)*mm')  u.parse('s^-1')  u.parse('sqrt(2)*cm')
   //
-  // Whitespace between two factors means multiplication.  Operators '*', '/'
-  // and '^' (or '**' for power) are honoured left-to-right; '^' binds to the
-  // factor on its left.  Numeric literals must be valid JSON numbers (write
-  // '1.0e-6', not '1.e-6').
-  parse(text)::
-    local root = self;  // pin the units object; 'self' rebinds inside {} below
-    local s0 = std.strReplace(text, '**', ' ^ ');
-    local s1 = std.strReplace(s0, '*', ' * ');
-    local s2 = std.strReplace(s1, '/', ' / ');
-    local s3 = std.strReplace(s2, '^', ' ^ ');
-    local toks = std.filter(function(t) t != '', std.split(s3, ' '));
-    if std.length(toks) == 0 then
-      error 'hep_units.parse: empty expression'
+  // Grammar (lowest to highest precedence):
+  //   expr    := term { ('+' | '-') term }
+  //   term    := unary { ('*' | '/' | <whitespace>) unary }
+  //   unary   := ('+' | '-') unary | power
+  //   power   := primary [ ('^' | '**') unary ]          (right-associative)
+  //   primary := number | name | name '(' expr {',' expr} ')' | '(' expr ')'
+  //
+  // Two operands side by side multiply ('1.5 cm' is 1.5*cm); '^' binds tighter
+  // than a sign ('-2^2' is -4).  Names are looked up first in `symbols` (an
+  // object, e.g. a GDML file's constants), then in table.  Functions: sqrt sin
+  // cos tan asin acos atan exp log pow abs min max.
+  parse(text, symbols={})::
+    local root = $;
+    local n = std.length(text);
+    local fail(what, i) = error 'hep_units.parse: %s at column %d of "%s"' % [what, i, text];
+    local cp(i) = if i < n then std.codepoint(text[i]) else -1;
+    local isdigit(i) = cp(i) >= 48 && cp(i) <= 57;
+    local isalpha(i) = (cp(i) >= 65 && cp(i) <= 90) || (cp(i) >= 97 && cp(i) <= 122) || cp(i) == 95;
+    local isspace(i) = i < n && std.member(' \t\n\r', text[i]);
+    local scan(i, pred) = if pred(i) then scan(i + 1, pred) else i;
+    // A number's end; returns the index after the last character.
+    local number_end(i) =
+      local a = scan(i, isdigit);
+      local b = if a < n && text[a] == '.' then scan(a + 1, isdigit) else a;
+      if b < n && (text[b] == 'e' || text[b] == 'E') then
+        local k = if b + 1 < n && (text[b + 1] == '+' || text[b + 1] == '-') then b + 2 else b + 1;
+        if isdigit(k) then scan(k, isdigit) else b
+      else b;
+    // C-style number text -> valid JSON number ('1.' '.5' '1.e3' '007').
+    local json_number(t, i) =
+      local me = std.split(std.strReplace(t, 'E', 'e'), 'e');
+      local mf = std.split(me[0], '.');
+      local ip = std.lstripChars(mf[0], '0');
+      local fp = if std.length(mf) > 1 then mf[1] else '';
+      if mf[0] == '' && fp == '' then fail('bad number', i)
+      else std.parseJson((if ip == '' then '0' else ip) + '.' + (if fp == '' then '0' else fp)
+                         + (if std.length(me) > 1 then 'e' + me[1] else ''));
+    // Tokens: {k: 'num'|'name'|'op', v, at}.  '**' becomes '^'.
+    local lex(i, acc) =
+      if i >= n then acc
+      else if isspace(i) then lex(i + 1, acc)
+      else if isdigit(i) || text[i] == '.' then
+        local j = number_end(i);
+        lex(j, acc + [{ k: 'num', v: json_number(text[i:j], i), at: i }])
+      else if isalpha(i) then
+        local j = scan(i, function(x) isalpha(x) || isdigit(x));
+        lex(j, acc + [{ k: 'name', v: text[i:j], at: i }])
+      else if text[i] == '*' && i + 1 < n && text[i + 1] == '*' then
+        lex(i + 2, acc + [{ k: 'op', v: '^', at: i }])
+      else if std.member('+-*/^(),', text[i]) then
+        lex(i + 1, acc + [{ k: 'op', v: text[i], at: i }])
+      else fail("unexpected '%s'" % text[i], i);
+    local toks = lex(0, []);
+    local nt = std.length(toks);
+    local is(p, v) = p < nt && toks[p].k == 'op' && toks[p].v == v;
+    local col(p) = if p < nt then toks[p].at else n;
+    local operand(p) = p < nt && (toks[p].k != 'op' || toks[p].v == '(');
+    local funcs = {
+      sqrt: [1, function(a) std.sqrt(a[0])], sin: [1, function(a) std.sin(a[0])],
+      cos: [1, function(a) std.cos(a[0])], tan: [1, function(a) std.tan(a[0])],
+      asin: [1, function(a) std.asin(a[0])], acos: [1, function(a) std.acos(a[0])],
+      atan: [1, function(a) std.atan(a[0])], exp: [1, function(a) std.exp(a[0])],
+      log: [1, function(a) std.log(a[0])], abs: [1, function(a) std.abs(a[0])],
+      pow: [2, function(a) std.pow(a[0], a[1])], min: [2, function(a) std.min(a[0], a[1])],
+      max: [2, function(a) std.max(a[0], a[1])],
+    };
+    // Each rule takes a token position and returns { v, p } (value, next position).
+    local expr(p) =
+      local loop(r) =
+        if is(r.p, '+') then local t = term(r.p + 1); loop({ v: r.v + t.v, p: t.p })
+        else if is(r.p, '-') then local t = term(r.p + 1); loop({ v: r.v - t.v, p: t.p })
+        else r;
+      loop(term(p)),
+    term(p) =
+      local loop(r) =
+        if is(r.p, '*') then local u = unary(r.p + 1); loop({ v: r.v * u.v, p: u.p })
+        else if is(r.p, '/') then local u = unary(r.p + 1); loop({ v: r.v / u.v, p: u.p })
+        else if operand(r.p) then local u = unary(r.p); loop({ v: r.v * u.v, p: u.p })
+        else r;
+      loop(unary(p)),
+    unary(p) =
+      if is(p, '+') then unary(p + 1)
+      else if is(p, '-') then local u = unary(p + 1); { v: -u.v, p: u.p }
+      else power(p),
+    power(p) =
+      local b = primary(p);
+      if is(b.p, '^') then local e = unary(b.p + 1); { v: std.pow(b.v, e.v), p: e.p }
+      else b,
+    args(p, acc) =
+      local a = expr(p);
+      if is(a.p, ',') then args(a.p + 1, acc + [a.v]) else { v: acc + [a.v], p: a.p },
+    primary(p) =
+      if p >= nt then fail('missing operand', n)
+      else if is(p, '(') then
+        local e = expr(p + 1);
+        if is(e.p, ')') then { v: e.v, p: e.p + 1 } else fail("missing ')'", col(e.p))
+      else if toks[p].k == 'num' then { v: toks[p].v, p: p + 1 }
+      else if toks[p].k == 'name' then
+        local name = toks[p].v;
+        if is(p + 1, '(') then
+          local a = args(p + 2, []);
+          if !is(a.p, ')') then fail("missing ')'", col(a.p))
+          else if !std.objectHas(funcs, name) then fail("unknown function '%s'" % name, toks[p].at)
+          else if std.length(a.v) != funcs[name][0] then
+            fail('%s() takes %d argument(s)' % [name, funcs[name][0]], toks[p].at)
+          else { v: funcs[name][1](a.v), p: a.p + 1 }
+        else if std.objectHas(symbols, name) then { v: symbols[name], p: p + 1 }
+        else if std.objectHas(root.table, name) then { v: root.table[name], p: p + 1 }
+        else fail("unknown unit '%s'" % name, toks[p].at)
+      else fail("unexpected '%s'" % toks[p].v, toks[p].at);
+    if nt == 0 then fail('empty expression', 0)
     else
-      // Read a factor (atom with optional '^ exponent') at index i.
-      // Returns { value, next }.
-      local readFactor(i) =
-        local v0 = root.resolve(toks[i]);
-        if i + 1 < std.length(toks) && toks[i + 1] == '^' then
-          { value: std.pow(v0, root.resolve(toks[i + 2])), next: i + 3 }
-        else
-          { value: v0, next: i + 1 };
-      // Left-to-right fold over factors and '*'/'/' operators.
-      local loop(i, acc, op) =
-        if i >= std.length(toks) then acc
-        else if toks[i] == '*' || toks[i] == '/' then loop(i + 1, acc, toks[i])
-        else
-          local f = readFactor(i);
-          local acc2 = if op == '/' then acc / f.value else acc * f.value;
-          loop(f.next, acc2, '*');  // adjacent factors multiply
-      loop(0, 1.0, '*'),
+      local r = expr(0);
+      if r.p < nt then fail("unexpected '%s'" % toks[r.p].v, toks[r.p].at) else r.v,
 """
 
 

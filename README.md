@@ -61,27 +61,52 @@ meter       = 1000.*millimeter   # trailing comments after '#' are allowed
 
 ## The `parse()` function
 
-Each product includes a `parse()` that turns a *"value and units"* string into a
-number in the system of units:
+Each product includes a `parse()` that evaluates an arithmetic expression of
+numbers, units and constants to a number in the system of units:
 
 ```
-parse("1.5*cm")     ->  15.0        // explicit multiply
-parse("1.5 cm")     ->  15.0        // whitespace = implicit multiply
-parse("9.8 m/s^2")  ->  9.8e-15
-parse("3 mm*ns")    ->  3.0
-parse("2*pi")       ->  6.2831853…
-parse("eplus")      ->  1.0
+parse("1.5*cm")         ->  15.0        // explicit multiply
+parse("1.5 cm")         ->  15.0        // whitespace = implicit multiply
+parse("9.8 m/s^2")      ->  9.8e-15
+parse("2*pi")           ->  6.2831853…
+parse("0.5*0.02")       ->  0.01        // plain arithmetic, e.g. GDML attributes
+parse("2 cm + 3 mm")    ->  23.0
+parse("(1+2)*mm")       ->  3.0
+parse("s^-1")           ->  1e-09
+parse("sqrt(2)*cm")     ->  14.142135…
+parse("0.5*kWireDiam", {"kWireDiam": 0.015})   ->  0.0075   // caller symbols
 ```
 
-Grammar: a flat left-to-right product/quotient of factors. A factor is a numeric
-literal or a known symbol name, optionally raised to a power with `^` (or `**`).
-Operators `*`, `/`, `^` and whitespace-as-multiply are honoured; `^` binds to the
-factor on its left. Unknown names raise/error.
+Grammar, lowest to highest precedence:
 
-> Jsonnet caveat: numeric literals in a `parse()` argument must be valid JSON
-> numbers — write `"1.0e-6"`, not `"1.e-6"`. The C++ and Python parsers accept
-> both. (This only affects the *argument* string; the generated symbol values are
-> always exact.)
+```
+expr    := term { ('+' | '-') term }
+term    := unary { ('*' | '/' | <whitespace>) unary }
+unary   := ('+' | '-') unary | power
+power   := primary [ ('^' | '**') unary ]          (right-associative)
+primary := number | name | name '(' expr {',' expr} ')' | '(' expr ')'
+```
+
+- Two operands side by side multiply, so `"1.5 cm"` is `1.5*cm` and
+  `"9.8 m/s^2"` is `9.8*m/(s^2)`.  `^` binds tighter than a sign:
+  `"-2^2"` is -4; `"2^3^2"` is 512.
+- Numbers are C-style: `1`, `1.`, `.5`, `1.5e-3`, `1.E3` (in all three
+  products; Jsonnet no longer needs JSON-only literals).
+- Names are looked up first in the caller's symbols, then in the table.  This
+  is how a GDML reader evaluates attributes that use its file's
+  `<constant>`s.  C++: `parse(text, std::unordered_map<std::string,double>)`
+  or `parse_with(text, lookup)` where `lookup(std::string_view)` returns a
+  `const double*` (nullptr when unknown); Python: `parse(text, mapping)`;
+  Jsonnet: `parse(text, object)`.
+- Functions: `sqrt sin cos tan asin acos atan exp log pow abs min max`.
+- Errors (unknown name or function, bad syntax, empty text) throw
+  `std::invalid_argument` / raise `ValueError` / are Jsonnet errors.
+- Arithmetic gives bit-identical results in C++, Python and Jsonnet
+  (`test/test_parity.py` checks every case of `test/parse-cases.txt`).
+  Functions use each language's math library and may differ in the last bit
+  (seen: `acos(0.3)` in go-jsonnet).
+- The grammar is a superset of the previous flat product/quotient one, and
+  every expression that one accepted gives the same value.
 
 ## Regenerating the products (developers only)
 
@@ -144,7 +169,9 @@ src/hep_units/__init__.py     GENERATED Python module
 jsonnet/hep/units.libsonnet   GENERATED Jsonnet library
 CMakeLists.txt                 build/install for all three products
 pyproject.toml                 parallel Python install
-test/                          C++, Python and Jsonnet checks (ctest + pytest)
+test/                          C++, Python and Jsonnet checks (ctest + pytest);
+                               parse-cases.txt is shared, test_parity.py
+                               compares the three products
 ```
 
 ## License

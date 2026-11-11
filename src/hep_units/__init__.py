@@ -575,54 +575,179 @@ TABLE = {
     "amu_c2": amu_c2,
 }
 
+import math as _math
 
-def _resolve(atom):
-    try:
-        return float(atom)
-    except ValueError:
-        pass
-    if atom in TABLE:
-        return TABLE[atom]
-    raise ValueError(f"hep_units.parse: unknown unit {atom!r}")
+_FUNCS = {
+    "sqrt": (1, _math.sqrt), "sin": (1, _math.sin), "cos": (1, _math.cos),
+    "tan": (1, _math.tan), "asin": (1, _math.asin), "acos": (1, _math.acos),
+    "atan": (1, _math.atan), "exp": (1, _math.exp), "log": (1, _math.log),
+    "abs": (1, abs), "pow": (2, _math.pow), "min": (2, min), "max": (2, max),
+}
 
 
-def parse(text):
-    """Evaluate a "value and units" string in the system of units.
+class _Parser:
+    def __init__(self, text, symbols):
+        self.s = text
+        self.i = 0
+        self.symbols = symbols or {}
 
-    The string is a flat product/quotient of factors, each an optional integer
-    power::
+    def fail(self, what):
+        raise ValueError(f"hep_units.parse: {what} at column {self.i} of {self.s!r}")
 
-        parse("1.5*cm")     parse("9.8 m/s^2")     parse("3 mm*ns")
-        parse("2*pi")       parse("eplus")
+    def skip(self):
+        while self.i < len(self.s) and self.s[self.i].isspace():
+            self.i += 1
 
-    Whitespace between two factors means multiplication.  Operators ``*``,
-    ``/`` and ``^`` (or ``**`` for power) are honoured left-to-right; ``^``
-    binds to the factor on its left.  Factors are numeric literals or names
-    from :data:`TABLE`.
+    def at(self, c):
+        self.skip()
+        return self.s.startswith(c, self.i)
+
+    def at_power(self):
+        return self.at("^") or self.at("**")
+
+    def at_operand(self):
+        self.skip()
+        if self.i >= len(self.s):
+            return False
+        c = self.s[self.i]
+        return c.isdigit() or c == "." or c == "(" or c.isalpha() or c == "_"
+
+    def run(self):
+        self.skip()
+        if self.i >= len(self.s):
+            self.fail("empty expression")
+        v = self.expr()
+        self.skip()
+        if self.i < len(self.s):
+            self.fail(f"unexpected {self.s[self.i]!r}")
+        return v
+
+    def expr(self):
+        v = self.term()
+        while True:
+            if self.at("+"):
+                self.i += 1
+                v += self.term()
+            elif self.at("-"):
+                self.i += 1
+                v -= self.term()
+            else:
+                return v
+
+    def term(self):
+        v = self.unary()
+        while True:
+            if self.at("*") and not self.at("**"):
+                self.i += 1
+                v *= self.unary()
+            elif self.at("/"):
+                self.i += 1
+                v /= self.unary()
+            elif self.at_operand():
+                v *= self.unary()
+            else:
+                return v
+
+    def unary(self):
+        if self.at("+"):
+            self.i += 1
+            return self.unary()
+        if self.at("-"):
+            self.i += 1
+            return -self.unary()
+        return self.power()
+
+    def power(self):
+        b = self.primary()
+        if self.at_power():
+            self.i += 1 if self.s[self.i] == "^" else 2
+            return b ** self.unary()
+        return b
+
+    def number(self):
+        s, b = self.s, self.i
+        n = len(s)
+        while self.i < n and s[self.i].isdigit():
+            self.i += 1
+        if self.i < n and s[self.i] == ".":
+            self.i += 1
+            while self.i < n and s[self.i].isdigit():
+                self.i += 1
+        if self.i < n and s[self.i] in "eE":
+            k = self.i + 1
+            if k < n and s[k] in "+-":
+                k += 1
+            if k < n and s[k].isdigit():
+                self.i = k
+                while self.i < n and s[self.i].isdigit():
+                    self.i += 1
+        text = s[b:self.i]
+        if text == ".":
+            self.fail("bad number")
+        return float(text)
+
+    def primary(self):
+        self.skip()
+        if self.i >= len(self.s):
+            self.fail("missing operand")
+        c = self.s[self.i]
+        if c == "(":
+            self.i += 1
+            v = self.expr()
+            if not self.at(")"):
+                self.fail("missing ')'")
+            self.i += 1
+            return v
+        if c.isdigit() or c == ".":
+            return self.number()
+        if c.isalpha() or c == "_":
+            b = self.i
+            while self.i < len(self.s) and (self.s[self.i].isalnum() or self.s[self.i] == "_"):
+                self.i += 1
+            name = self.s[b:self.i]
+            if self.at("("):
+                self.i += 1
+                args = [self.expr()]
+                while self.at(","):
+                    self.i += 1
+                    args.append(self.expr())
+                if not self.at(")"):
+                    self.fail("missing ')'")
+                self.i += 1
+                if name not in _FUNCS:
+                    self.fail(f"unknown function {name!r}")
+                nargs, fn = _FUNCS[name]
+                if len(args) != nargs:
+                    self.fail(f"{name}() takes {nargs} argument(s)")
+                return float(fn(*args))
+            if name in self.symbols:
+                return self.symbols[name]
+            if name in TABLE:
+                return TABLE[name]
+            self.fail(f"unknown unit {name!r}")
+        self.fail(f"unexpected {c!r}")
+
+
+def parse(text, symbols=None):
+    """Evaluate an arithmetic expression of numbers, units and constants.
+
+    ::
+
+        parse("1.5*cm")   parse("1.5 cm")   parse("9.8 m/s^2")   parse("2*pi")
+        parse("0.5*0.02") parse("(1+2)*mm") parse("s^-1")  parse("sqrt(2)*cm")
+
+    Grammar (lowest to highest precedence)::
+
+        expr    := term { ('+' | '-') term }
+        term    := unary { ('*' | '/' | <whitespace>) unary }
+        unary   := ('+' | '-') unary | power
+        power   := primary [ ('^' | '**') unary ]          (right-associative)
+        primary := number | name | name '(' expr {',' expr} ')' | '(' expr ')'
+
+    Two operands side by side multiply ("1.5 cm" is 1.5*cm); '^' binds
+    tighter than a sign ("-2^2" is -4).  Names are looked up first in
+    ``symbols`` (a mapping, e.g. a GDML file's constants), then in
+    :data:`TABLE`.  Functions: sqrt sin cos tan asin acos atan exp log pow
+    abs min max.  Errors raise ValueError.
     """
-    s = (text.replace("**", " ^ ").replace("*", " * ")
-             .replace("/", " / ").replace("^", " ^ "))
-    toks = s.split()
-    if not toks:
-        raise ValueError("hep_units.parse: empty expression")
-    acc = 1.0
-    op = "*"
-    i = 0
-    n = len(toks)
-    while i < n:
-        t = toks[i]
-        if t in ("*", "/"):
-            op = t
-            i += 1
-            continue
-        v = _resolve(t)
-        i += 1
-        while i < n and toks[i] == "^":
-            i += 1
-            if i >= n:
-                raise ValueError("hep_units.parse: dangling '^'")
-            v = v ** _resolve(toks[i])
-            i += 1
-        acc = acc / v if op == "/" else acc * v
-        op = "*"  # adjacent factors multiply
-    return acc
+    return _Parser(text, symbols).run()
