@@ -34,13 +34,21 @@ The values live in human-editable `.units` files under `units/`:
   constants of nature. It is consumed *after* `clhep.units`, so it may reference
   any CLHEP symbol.
 
+- **`units/evaluator.units`** — *aliases*: the 63 names that the CLHEP
+  expression evaluator (`HepTool::Evaluator::setSystemOfUnits`, used by
+  Geant4's GDML reader) knows but `SystemOfUnits.h` lacks, such as `V`, `kV`,
+  `A`, `T`, `atm`, `micron`, `litre`. Each is defined from the CLHEP name for
+  the same unit and takes its exact value. With them, `parse()` accepts every
+  unit a GDML file may use (DUNE files write `Efield` auxiliaries as
+  `500*V/cm`).
+
 ### `.units` format
 
 ```
 # Blank lines and lines starting with '#' are ignored.
 
 @section Length [L]        # a grouping label for the output (optional)
-@kind unit                 # tag following defs: 'unit' (default) or 'constant'
+@kind unit                 # tag following defs: 'unit' (default), 'constant' or 'alias'
 
 millimeter  = 1.           # NAME = EXPRESSION
 centimeter  = 10.*millimeter
@@ -58,6 +66,12 @@ meter       = 1000.*millimeter   # trailing comments after '#' are allowed
   multiplication out (e.g. `c_squared = c_light*c_light`).
 - Every defined symbol (units and constants alike) becomes a named value in each
   product and an entry in that product's lookup table.
+- Symbols of kind `alias` are in every lookup table, so `parse()` knows them,
+  but are kept out of the way of short names in user code: in C++ they are in
+  the nested namespace `hep::units::aliases` (`hep::units::aliases::V`), so
+  `using namespace hep::units` does not import `A C F H K N S T V W`; in
+  Python they are module attributes but not in `__all__`; in Jsonnet they are
+  hidden fields like every unit. Only aliases may refer to aliases.
 
 ## The `parse()` function
 
@@ -163,6 +177,7 @@ python -c "import hep_units as u; print(u.parse('1.6 mm/us'))"
 ```
 units/clhep.units             source of truth: CLHEP SystemOfUnits.h (frozen)
 units/hep.units               source of truth: extra units + constants of nature
+units/evaluator.units         source of truth: CLHEP evaluator / GDML aliases
 generate/generate.py          the source-code generator (developer tool)
 include/hep/units.hpp         GENERATED C++ header
 src/hep_units/__init__.py     GENERATED Python module

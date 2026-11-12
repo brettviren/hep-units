@@ -36,5 +36,6 @@ assert u.parse('m', { m: 5 }) == 5 : 'symbols shadow units';
 
 assert std.length(std.objectFields(u.table)) > 100 : 'table size';
 assert u.table.cm == u.cm : 'table cm';
+assert u.V == u.volt && u.table.V == u.volt : 'alias V';
 
 'ok'

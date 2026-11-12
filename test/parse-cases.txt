@@ -29,9 +29,14 @@ eplus                 ||  1.0
 2*(3-5)/4             ||  2*(3-5)/4
 (2)(3)                ||  6.0
 2(3)                  ||  6.0
-500*V/cm             ||  !error
-# (V is not a CLHEP/hep-units symbol; GDML Efield auxvalues use it.)
 500*volt/cm           ||  500*u.volt/u.cm
+# --- evaluator aliases (units/evaluator.units), as GDML files use them ---
+500*V/cm              ||  500*u.volt/u.cm
+2 kV/cm               ||  2*u.kilovolt/u.cm
+1*atm                 ||  u.atmosphere
+3 mA                  ||  3*u.milliampere
+# a caller symbol shadows an alias, as it shadows any unit
+2*V                   | V=7 |  14.0
 # --- numbers ---
 1e-3*m                ||  1e-3*u.m
 1.5E+2 mm             ||  150.0

@@ -31,6 +31,11 @@ int main()
   check_close("degree", degree, pi / 180.0);
   check_close("twopi", twopi, 2 * pi);
 
+  // Evaluator aliases live in hep::units::aliases, not hep::units.
+  static_assert(aliases::V == volt);
+  static_assert(aliases::kV == kilovolt);
+  check_close("parse 500*V/cm", parse("500*V/cm"), 500 * volt / cm);
+
   // parse(): coefficient * unit, explicit and implicit multiply.
   check_close("parse 1.5*cm", parse("1.5*cm"), 15.0);
   check_close("parse 1.5 cm", parse("1.5 cm"), 15.0);

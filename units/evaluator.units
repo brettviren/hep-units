@@ -1,0 +1,102 @@
+# -*- mode: conf -*-
+#
+# Copyright (c) 2026, Brookhaven Science Associates, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Aliases: the unit names that the CLHEP expression evaluator knows but that
+# CLHEP/Units/SystemOfUnits.h (units/clhep.units) does not define.
+#
+# The evaluator's vocabulary is set by HepTool::Evaluator::setSystemOfUnits()
+#
+#     CLHEP/Evaluator/setSystemOfUnits.cc
+#     https://github.com/Geant4/geant4/blob/master/source/externals/clhep/src/setSystemOfUnits.cc
+#
+# and Geant4's GDML reader (G4GDMLEvaluator) uses it for every numeric
+# attribute, so GDML files may say "500*V/cm" or "1*atm".  This file lists
+# exactly the names there that are missing from clhep.units and hep.units
+# (63 as of Geant4 11.3), each defined from the CLHEP name for the same unit.
+# Every name the evaluator shares with clhep.units has the same value to
+# 1e-12 relative.  An alias takes the CLHEP value exactly; the evaluator
+# computes some units by a different route (e.g. V = J/C) and may differ from
+# it in the last bits.
+#
+# Kind "alias": parse() knows these names in every product, and Python and
+# Jsonnet expose them like any unit.  In C++ they live in the nested
+# namespace hep::units::aliases, so "using namespace hep::units" does not
+# bring single-letter names (A C F H K N S T V W) into scope.
+#
+# Consumed after clhep.units and hep.units.  Nothing else may refer to an
+# alias.
+
+@kind alias
+
+@section Evaluator spellings of SI base units
+metre = meter
+amp   = ampere
+A     = ampere
+K     = kelvin
+mol   = mole
+cd    = candela
+
+@section Evaluator symbols of derived units
+Hz      = hertz
+N       = newton
+Pa      = pascal
+atm     = atmosphere
+J       = joule
+W       = watt
+C       = coulomb
+V       = volt
+siemens = 1/ohm
+S       = siemens
+F       = farad
+T       = tesla
+Gs      = gauss
+Wb      = weber
+H       = henry
+lm      = lumen
+lx      = lux
+Gy      = gray
+sievert = gray
+Sv      = sievert
+
+@section Evaluator length, area and volume
+decimeter = 0.1*meter
+micron    = micrometer
+mbarn     = millibarn
+cc        = centimeter3
+litre     = liter
+centiliter = 0.01*liter
+milliliter = 0.001*liter
+diopter   = 1/meter
+dioptre   = diopter
+dpt       = diopter
+
+@section Evaluator prefixed units
+mA         = milliampere
+kHz        = kilohertz
+MHz        = megahertz
+kilonewton = 1.e+3*newton
+kN         = kilonewton
+kilobar    = 1.e+3*bar
+kbar       = kilobar
+millibar   = 1.e-3*bar
+mbar       = millibar
+kilojoule  = 1.e+3*joule
+kJ         = kilojoule
+megajoule  = 1.e+6*joule
+MJ         = megajoule
+gigajoule  = 1.e+9*joule
+GJ         = gigajoule
+kW         = kilowatt
+megawatt   = 1.e+6*watt
+MW         = megawatt
+gigawatt   = 1.e+9*watt
+GW         = gigawatt
+kV         = kilovolt
+MV         = megavolt
+mF         = millifarad
+uF         = microfarad
+nF         = nanofarad
+pF         = picofarad
+kGs        = kilogauss

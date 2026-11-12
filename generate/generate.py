@@ -99,6 +99,7 @@ def parse_sources(paths):
     """Parse the given ``.units`` files, returning an ordered list of Symbol."""
     symbols = {}           # name -> value, for expression evaluation
     records = []           # ordered Symbol list
+    aliases = set()        # names of kind "alias"
     section = None
     kind = "unit"
     for path in paths:
@@ -112,9 +113,9 @@ def parse_sources(paths):
                 continue
             if line.startswith("@kind"):
                 kind = line[len("@kind"):].strip()
-                if kind not in ("unit", "constant"):
+                if kind not in ("unit", "constant", "alias"):
                     raise ValueError(
-                        f"{path}:{lineno}: @kind must be 'unit' or 'constant', "
+                        f"{path}:{lineno}: @kind must be 'unit', 'constant' or 'alias', "
                         f"got {kind!r}")
                 continue
             if "=" not in line:
@@ -126,6 +127,15 @@ def parse_sources(paths):
                 raise ValueError(f"{path}:{lineno}: invalid name {name!r}")
             if name in symbols:
                 raise ValueError(f"{path}:{lineno}: duplicate name {name!r}")
+            if kind != "alias":
+                used = {n.id for n in ast.walk(ast.parse(expr, mode="eval"))
+                        if isinstance(n, ast.Name)}
+                if used & aliases:
+                    raise ValueError(
+                        f"{path}:{lineno}: {name!r} refers to alias(es) "
+                        f"{sorted(used & aliases)}; only aliases may")
+            else:
+                aliases.add(name)
             try:
                 value = _eval(ast.parse(expr, mode="eval"), symbols)
             except Exception as err:
@@ -226,6 +236,9 @@ def render_expr(expr, name_fmt, jsonnet=False):
 def _num(value):
     """Round-trippable literal for a double; identical text in C++/Py/Jsonnet."""
     return repr(float(value))
+
+
+_KIND_TAG = {"unit": "", "constant": " (constants)", "alias": " (aliases)"}
 
 
 def _grouped(records):
@@ -524,16 +537,34 @@ def emit_cpp(records, sources):
     out.append("")
     out.append("namespace hep::units {")
     out.append("")
+    in_alias = False
     for (section, kind), syms in _grouped(records):
+        if (kind == "alias") != in_alias:
+            in_alias = kind == "alias"
+            if in_alias:
+                out.append("// Aliases: names the CLHEP expression evaluator (and so GDML)")
+                out.append("// knows beyond SystemOfUnits.h.  Kept out of hep::units itself so")
+                out.append("// 'using namespace hep::units' does not import A, C, S, T, V ...")
+                out.append("namespace aliases {")
+                out.append("")
+            else:
+                out.append("}  // namespace aliases")
+                out.append("")
         label = section or ""
-        tag = "" if kind == "unit" else " (constants)"
+        tag = _KIND_TAG[kind]
         out.append(f"// ---- {label}{tag} ----")
         for sym in syms:
             rhs = render_expr(sym.expr, lambda n: n)
             out.append(f"inline constexpr double {sym.name} = {rhs};"
                        f"  // = {_num(sym.value)}")
         out.append("")
-    entries = "\n".join(f'    {{"{s.name}", {s.name}}},' for s in records)
+    if in_alias:
+        out.append("}  // namespace aliases")
+        out.append("")
+
+    def qualified(s):
+        return ("aliases::" if s.kind == "alias" else "") + s.name
+    entries = "\n".join(f'    {{"{s.name}", {qualified(s)}}},' for s in records)
     out.append(_CPP_PARSE.strip("\n") % {"entries": entries})
     out.append("")
     out.append("}  // namespace hep::units")
@@ -735,7 +766,9 @@ def emit_python(records, sources):
     out.extend(_header_lines(sources, "# "))
     out.append('"""hep-units: the CLHEP HEP system of units, plus local additions."""')
     out.append("")
-    names = [s.name for s in records]
+    names = [s.name for s in records if s.kind != "alias"]
+    out.append("# Aliases (hep_units.V ...) are attributes but not in __all__, so")
+    out.append("# 'from hep_units import *' does not import single-letter names.")
     out.append("__all__ = [")
     for name in names:
         out.append(f'    "{name}",')
@@ -745,7 +778,7 @@ def emit_python(records, sources):
     out.append("")
     for (section, kind), syms in _grouped(records):
         label = section or ""
-        tag = "" if kind == "unit" else " (constants)"
+        tag = _KIND_TAG[kind]
         out.append(f"# ---- {label}{tag} ----")
         for sym in syms:
             rhs = render_expr(sym.expr, lambda n: n)
@@ -905,7 +938,7 @@ def emit_jsonnet(records, sources):
     out.append("{")
     for (section, kind), syms in _grouped(records):
         label = section or ""
-        tag = "" if kind == "unit" else " (constants)"
+        tag = _KIND_TAG[kind]
         out.append(f"  // ---- {label}{tag} ----")
         for sym in syms:
             rhs = render_expr(sym.expr, lambda n: "self." + n, jsonnet=True)
@@ -938,7 +971,8 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("sources", nargs="*", type=Path,
                     default=[root / "units" / "clhep.units",
-                             root / "units" / "hep.units"],
+                             root / "units" / "hep.units",
+                             root / "units" / "evaluator.units"],
                     help="source-of-truth .units files (in consumption order)")
     ap.add_argument("--hpp", type=Path, default=root / "include" / "hep" / "units.hpp")
     ap.add_argument("--py", type=Path, default=root / "src" / "hep_units" / "__init__.py")

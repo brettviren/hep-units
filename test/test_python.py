@@ -38,6 +38,11 @@ def test_parse_compound():
     assert math.isclose(u.parse("1/s"), 1.0 / u.s)
 
 
+def test_aliases():
+    assert u.V == u.volt and u.TABLE["V"] == u.volt
+    assert "V" not in u.__all__ and "volt" in u.__all__
+
+
 def test_table():
     assert len(u.TABLE) > 100
     assert u.TABLE["cm"] == u.cm
