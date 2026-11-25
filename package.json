@@ -1,0 +1,14 @@
+{
+  "name": "hep-units",
+  "version": "0.2.0",
+  "description": "The CLHEP HEP system of units, with an expression parser, as a JavaScript module generated from the same source as its C++, Python and Jsonnet siblings",
+  "main": "js/hep-units.js",
+  "files": [
+    "js/hep-units.js"
+  ],
+  "scripts": {
+    "test": "node test/test_js.js"
+  },
+  "license": "Apache-2.0",
+  "author": "Brett Viren"
+}

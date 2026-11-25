@@ -1,0 +1,313 @@
+<!doctype html>
+<!--
+  Copyright (c) 2026, Brookhaven Science Associates, LLC
+  SPDX-License-Identifier: Apache-2.0
+
+  hep-units parse() demo.  Loads hep-units.js next to this page (as in the
+  HTML web area made by docs/build.py) or ../js/hep-units.js (as in the source
+  tree), so it works opened straight from disk.  With "?embed" in the URL it
+  drops its header and reports its height to the parent page.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hep-units parse() demo</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --panel: #ffffff; --fg: #1d1f21; --muted: #5f6368;
+    --line: #dcdcd8; --accent: #1f5fa8; --accent-bg: #e8f0fa;
+    --ok: #1b6e3a; --err: #a4262c; --err-bg: #fbeaea; --code-bg: #f2f2ef;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161718; --panel: #1e2022; --fg: #e6e6e3; --muted: #a0a4a8;
+      --line: #34373a; --accent: #7fb0f0; --accent-bg: #1d2a3a;
+      --ok: #7cd39a; --err: #f08a8f; --err-bg: #3a1f22; --code-bg: #26292b;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1rem 2rem; }
+  .embed main { padding: 0.25rem 0.25rem 0.5rem; max-width: none; }
+  .embed .page-only { display: none; }
+  h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+  h2 { font-size: 1.05rem; margin: 0 0 0.5rem; }
+  p.lead { margin: 0 0 1.25rem; color: var(--muted); }
+  a { color: var(--accent); }
+  code, input.code, textarea.code, .mono {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 1rem; margin-bottom: 1rem;
+  }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin: 0 0 0.25rem; }
+  input.code, textarea.code {
+    width: 100%; font-size: 1rem; padding: 0.5rem 0.6rem; color: var(--fg);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  }
+  input.code:focus, textarea.code:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input#expr { font-size: 1.2rem; }
+  textarea.code { min-height: 4.5rem; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.75rem; }
+  @media (max-width: 40rem) { .row { grid-template-columns: 1fr; } }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }
+  .chips button {
+    font: 0.85rem ui-monospace, Menlo, Consolas, monospace; cursor: pointer;
+    color: var(--accent); background: var(--accent-bg); border: 1px solid transparent;
+    border-radius: 999px; padding: 0.15rem 0.6rem;
+  }
+  .chips button:hover { border-color: var(--accent); }
+  .result { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; align-items: baseline; }
+  .result dt { color: var(--muted); font-size: 0.85rem; }
+  .result dd { margin: 0; overflow-wrap: anywhere; }
+  .value { font-size: 1.35rem; font-weight: 600; color: var(--ok); }
+  .error { background: var(--err-bg); color: var(--err); border-radius: 6px; padding: 0.6rem 0.75rem; }
+  .error pre { margin: 0.4rem 0 0; white-space: pre; overflow-x: auto; color: var(--fg); }
+  .call { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; background: var(--code-bg); border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.9rem; overflow-x: auto; white-space: pre; }
+  .hint { font-size: 0.85rem; color: var(--muted); margin: 0.4rem 0 0; }
+  details > summary { cursor: pointer; font-weight: 600; }
+  .table-wrap { max-height: 22rem; overflow: auto; margin-top: 0.75rem; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.25rem 0.6rem; border-bottom: 1px solid var(--line); }
+  th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td button {
+    font: inherit; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer;
+  }
+  td button:hover { text-decoration: underline; }
+  footer { font-size: 0.8rem; color: var(--muted); margin-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <header class="page-only">
+    <h1>hep-units <code>parse()</code> demo</h1>
+    <p class="lead">Type an expression of numbers, units and constants.  It is
+      evaluated in your browser by <a href="hep-units.js" id="srclink">hep-units.js</a>,
+      the same code a web application would use.  See the
+      <a href="javascript.html">JavaScript guide</a> and the
+      <a href="parse.html"><code>parse()</code> language</a>.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="in-h">
+    <h2 id="in-h" class="page-only" style="position:absolute;left:-9999px">Input</h2>
+    <label for="expr">Expression (import: text &rarr; system of units)</label>
+    <input id="expr" class="code" type="text" value="1.6 mm/us" spellcheck="false"
+           autocomplete="off" autocapitalize="off">
+    <div class="row">
+      <div>
+        <label for="unit">Export to unit (divide by it)</label>
+        <input id="unit" class="code" type="text" value="cm/us" spellcheck="false"
+               autocomplete="off" autocapitalize="off" placeholder="e.g. cm, kV/cm, us">
+      </div>
+      <div>
+        <label for="syms">Caller symbols, one <code>name = expression</code> per line</label>
+        <textarea id="syms" class="code" spellcheck="false">kTPCWidth = 2.3 m
+half = 0.5</textarea>
+      </div>
+    </div>
+    <div class="chips" id="examples" aria-label="Examples"></div>
+  </section>
+
+  <section class="panel" aria-live="polite" id="out"></section>
+
+  <section class="panel">
+    <details id="browse">
+      <summary>All symbols (<span id="count">0</span>)</summary>
+      <p class="hint">Values are in the system of units (mm, ns, MeV, eplus, kelvin, mole, candela, radian are 1).
+        Click a name to add it to the expression.</p>
+      <label for="filter" style="margin-top:0.5rem">Filter</label>
+      <input id="filter" class="code" type="search" placeholder="e.g. volt, ^m, light"
+             spellcheck="false" autocomplete="off">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th style="text-align:right">Value</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <footer class="page-only" id="foot"></footer>
+</main>
+
+<script>
+"use strict";
+(function () {
+  const embed = /[?&]embed\b/.test(location.search);
+  if (embed) { document.documentElement.classList.add("embed"); }
+
+  // Load hep-units.js from next to this page, else from the source tree.
+  const candidates = ["hep-units.js", "../js/hep-units.js"];
+  function load(k) {
+    if (k >= candidates.length) {
+      document.getElementById("out").innerHTML =
+        '<div class="error">Could not load hep-units.js (tried ' +
+        candidates.join(", ") + ").</div>";
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = candidates[k];
+    s.onload = () => start(candidates[k]);
+    s.onerror = () => { s.remove(); load(k + 1); };
+    document.head.appendChild(s);
+  }
+  load(0);
+
+  function start(src) {
+    const u = window.hepUnits;
+    const $ = (id) => document.getElementById(id);
+    const expr = $("expr"), unit = $("unit"), syms = $("syms"), out = $("out");
+    $("srclink").href = src;
+
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    // Caller symbols: each line "name = expression", evaluated with parse()
+    // and the symbols defined on the lines above it.
+    function readSymbols() {
+      const table = {};
+      const lines = syms.value.split("\n");
+      for (let k = 0; k < lines.length; ++k) {
+        const line = lines[k].replace(/#.*/, "").trim();
+        if (!line) { continue; }
+        const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/.exec(line);
+        if (!m) { throw new Error("symbols line " + (k + 1) + ": expected name = expression"); }
+        try {
+          table[m[1]] = u.parse(m[2], table);
+        } catch (err) {
+          throw new Error("symbols line " + (k + 1) + ": " + err.message);
+        }
+      }
+      return table;
+    }
+
+    function caret(msg, text) {
+      const m = /at column (\d+) of /.exec(msg);
+      if (!m) { return ""; }
+      const col = Math.min(Number(m[1]), text.length);
+      // The column is just after a bad name: underline the whole name.
+      const q = /'([^']+)'/.exec(msg);
+      const tok = q ? q[1].replace(/\(\)$/, "") : "";
+      let end = col;
+      while (end > 0 && /\s/.test(text[end - 1])) { --end; }
+      if (tok && text.slice(end - tok.length, end) === tok) {
+        return "<pre>" + esc(text) + "\n" + " ".repeat(end - tok.length) + "^".repeat(tok.length) + "</pre>";
+      }
+      return "<pre>" + esc(text) + "\n" + " ".repeat(col) + "^</pre>";
+    }
+
+    const fmt = (v) => (typeof v === "number" ? String(v) : "");
+    const jsString = (t) => JSON.stringify(t);
+
+    function update() {
+      let html = '<h2>Result</h2><dl class="result">';
+      let symbols;
+      try {
+        symbols = readSymbols();
+      } catch (err) {
+        out.innerHTML = '<h2>Result</h2><div class="error">' + esc(err.message) + "</div>";
+        report();
+        return;
+      }
+      let value;
+      try {
+        value = u.parse(expr.value, symbols);
+      } catch (err) {
+        out.innerHTML = '<h2>Result</h2><div class="error">' + esc(err.message) +
+          caret(err.message, expr.value) + "</div>";
+        report();
+        return;
+      }
+      html += "<dt>In the system of units</dt><dd class=\"mono value\">" + esc(fmt(value)) + "</dd>";
+      const ut = unit.value.trim();
+      let call = "const v = hepUnits.parse(" + jsString(expr.value) +
+        (Object.keys(symbols).length ? ", " + JSON.stringify(symbols) : "") + ");";
+      if (ut) {
+        try {
+          const per = u.parse(ut);
+          html += "<dt>Exported</dt><dd class=\"mono value\">" + esc(fmt(value / per)) +
+            " " + esc(ut) + "</dd>";
+          call += "\nconsole.log(v / hepUnits.parse(" + jsString(ut) + "), " + jsString(ut) + ");";
+        } catch (err) {
+          html += "<dt>Exported</dt><dd><div class=\"error\">" + esc(err.message) +
+            caret(err.message, ut) + "</div></dd>";
+        }
+      }
+      html += "<dt>As code</dt><dd><div class=\"call\">" + esc(call) + "</div></dd></dl>";
+      out.innerHTML = html;
+      report();
+    }
+
+    // Examples: [expression, export unit].
+    const examples = [
+      ["1.6 mm/us", "cm/us"], ["9.8 m/s^2", "m/s^2"], ["500 V/cm", "kV/cm"],
+      ["2 cm + 3 mm", "mm"], ["(1+2)*mm", "um"], ["s^-1", "MHz"],
+      ["sqrt(2)*cm", "mm"], ["sin(30 deg)", ""], ["2.3 m / (1.6 mm/us)", "us"],
+      ["kTPCWidth/2 + 1 cm", "m"], ["half*hbarc", "MeV*fermi"],
+      ["electron_mass_c2", "keV"], ["1 atm", "bar"], ["-2^2", ""], ["2^3^2", ""],
+      ["3 furlong", ""], ["(1 + 2", ""],
+    ];
+    const chips = $("examples");
+    for (const [e, un] of examples) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = e;
+      b.title = un ? "export to " + un : "no export unit";
+      b.addEventListener("click", () => { expr.value = e; unit.value = un; update(); expr.focus(); });
+      chips.appendChild(b);
+    }
+
+    // Symbol browser.
+    const rows = $("rows"), filter = $("filter");
+    $("count").textContent = u.NAMES.length;
+    function renderRows() {
+      let re;
+      try { re = new RegExp(filter.value.trim(), "i"); } catch (err) { re = null; }
+      const q = filter.value.trim().toLowerCase();
+      const frag = document.createDocumentFragment();
+      for (const n of u.NAMES) {
+        if (q && !(re ? re.test(n) : n.toLowerCase().includes(q))) { continue; }
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"), td2 = document.createElement("td");
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "mono"; b.textContent = n;
+        b.addEventListener("click", () => {
+          expr.value = expr.value.trim() ? expr.value.trim() + " " + n : n;
+          update(); expr.focus();
+        });
+        td1.appendChild(b);
+        td2.className = "num mono"; td2.textContent = String(u.TABLE[n]);
+        tr.append(td1, td2);
+        frag.appendChild(tr);
+      }
+      rows.replaceChildren(frag);
+    }
+    filter.addEventListener("input", renderRows);
+    renderRows();
+
+    for (const el of [expr, unit, syms]) { el.addEventListener("input", update); }
+    $("browse").addEventListener("toggle", report);
+    $("foot").textContent = "hep-units.js loaded from " + src + ": " +
+      u.NAMES.length + " symbols.";
+    update();
+
+    // When embedded in a documentation page, tell it how tall we are.
+    function report() {
+      if (embed && window.parent !== window) {
+        window.parent.postMessage({ hepUnitsDemoHeight: document.documentElement.scrollHeight }, "*");
+      }
+    }
+    if (embed && "ResizeObserver" in window) { new ResizeObserver(report).observe(document.body); }
+  }
+}());
+</script>
+</body>
+</html>
