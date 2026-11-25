@@ -7,12 +7,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# hep-units ships three GENERATED products built from a single source of truth
+# hep-units ships four GENERATED products built from a single source of truth
 # (the units/*.units files):
 #
 #   include/hep/units.hpp        -- C++17 header-only library
 #   src/hep_units/__init__.py    -- Python module
 #   jsonnet/hep/units.libsonnet  -- Jsonnet library
+#   js/hep-units.js              -- JavaScript module (UMD)
 #
 # The products are committed to the repository; this build only installs them.
 # Regenerate after editing a .units source with `python generate/generate.py`
@@ -44,13 +45,22 @@ if(Python3_Interpreter_FOUND)
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Regenerating hep-units products from units/*.units"
     VERBATIM)
+
+  # docs -- the Markdown documentation in docs/ as a static HTML web area in
+  # <build>/docs (needs pandoc, or the Python "markdown" package).
+  add_custom_target(docs
+    COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/docs/build.py -o ${CMAKE_CURRENT_BINARY_DIR}/docs
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Building the HTML documentation in ${CMAKE_CURRENT_BINARY_DIR}/docs"
+    VERBATIM)
 endif()
 
 enable_testing()
 add_subdirectory(test)
 
 # ---------------------------------------------------------------------------
-# Install: C++ header, Python module, Jsonnet library.
+# Install: C++ header, Python module, Jsonnet library, JavaScript module.
 # ---------------------------------------------------------------------------
 include(GNUInstallDirs)
 
@@ -76,6 +86,13 @@ install(DIRECTORY src/hep_units
 install(DIRECTORY jsonnet/hep
   DESTINATION "${CMAKE_INSTALL_DATADIR}/jsonnet"
   FILES_MATCHING PATTERN "*.libsonnet"
+)
+
+# JavaScript module -> <prefix>/share/javascript/hep-units.js
+# (a UMD file: load with <script>, require() or import; the parallel
+# package.json lets npm install the same single file.)
+install(FILES js/hep-units.js
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/javascript"
 )
 
 # CMake package config so downstreams can find_package(hep_units).

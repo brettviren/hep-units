@@ -18,6 +18,15 @@ if(Python3_Interpreter_FOUND)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_python.py)
 endif()
 
+# JavaScript test of the generated module, if Node.js is available.
+find_program(NODE_EXECUTABLE NAMES node nodejs)
+if(NODE_EXECUTABLE)
+  add_test(NAME js_units
+    COMMAND ${NODE_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_js.js)
+else()
+  set(NODE_EXECUTABLE "")
+endif()
+
 # Jsonnet test of the generated library, if a jsonnet CLI is available.
 find_program(JSONNET_EXECUTABLE NAMES jsonnet)
 if(JSONNET_EXECUTABLE)
@@ -25,11 +34,12 @@ if(JSONNET_EXECUTABLE)
     COMMAND ${JSONNET_EXECUTABLE}
             -J ${CMAKE_CURRENT_SOURCE_DIR}/../jsonnet
             ${CMAKE_CURRENT_SOURCE_DIR}/test_jsonnet.jsonnet)
-  # parse() parity: C++, Python and Jsonnet agree exactly on parse-cases.txt.
+  # parse() parity: C++, Python, Jsonnet (and JavaScript, if node is found)
+  # agree exactly on parse-cases.txt.
   if(Python3_Interpreter_FOUND)
     add_test(NAME parse_parity
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_parity.py
               $<TARGET_FILE:hep_units_eval> ${JSONNET_EXECUTABLE}
-              ${CMAKE_CURRENT_SOURCE_DIR}/../jsonnet)
+              ${CMAKE_CURRENT_SOURCE_DIR}/../jsonnet ${NODE_EXECUTABLE})
   endif()
 endif()

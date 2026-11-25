@@ -2,8 +2,8 @@
 # Copyright (c) 2026, Brookhaven Science Associates, LLC
 # SPDX-License-Identifier: Apache-2.0
 """
-Generate the hep-units products (C++ header, Python module, Jsonnet library)
-from the source-of-truth ``.units`` files.
+Generate the hep-units products (C++ header, Python module, Jsonnet library,
+JavaScript module) from the source-of-truth ``.units`` files.
 
 This is a DEVELOPER tool.  Its outputs are committed into the package so that
 downstream builds never need to run it (and never need this script's runtime,
@@ -12,11 +12,18 @@ which is nothing more than the Python standard library).  Re-run it whenever a
 
     python generate/generate.py
 
-By default it reads ``units/clhep.units`` then ``units/hep.units`` and writes:
+By default it reads ``units/clhep.units``, ``units/hep.units`` and
+``units/evaluator.units`` and writes:
 
     include/hep/units.hpp
     src/hep_units/__init__.py
     jsonnet/hep/units.libsonnet
+    js/hep-units.js
+
+Give other ``.units`` files as arguments to replace the default system, or
+``--extra FILE`` (repeatable) to append files to it.  ``--hpp``, ``--py``,
+``--jsonnet`` and ``--js`` choose the output paths and ``--only`` limits which
+products are written.  See docs/units-files.md.
 
 The source-of-truth format
 --------------------------
@@ -25,15 +32,16 @@ non-space character is ``#`` are ignored.  Otherwise a line is one of:
 
     @section <free text>      -- a grouping label for the definitions that
                                  follow (used only to organise the output)
-    @kind unit|constant       -- tag the following definitions as either a
-                                 "unit" or a "constant" (default: unit)
+    @kind unit|constant|alias -- tag the following definitions as a "unit",
+                                 a "constant" or an "alias" (default: unit)
     NAME = EXPRESSION         -- define symbol NAME.
 
 NAME is a C/Python identifier.  EXPRESSION is simple arithmetic over numeric
 literals and previously-defined NAMEs using ``+ - * / **`` and parentheses
 (unary +/- allowed).  Definitions are evaluated in order; a name must be
 defined before it is used.  Files given on the command line are concatenated in
-order, so later files may reference names from earlier ones.
+order, so later files may reference names from earlier ones.  ``@section``
+and ``@kind`` reset at the start of each file.
 
 All defined symbols -- units and constants alike -- become named values in each
 product and populate the lookup table used by the generated ``parse()``
@@ -100,10 +108,12 @@ def parse_sources(paths):
     symbols = {}           # name -> value, for expression evaluation
     records = []           # ordered Symbol list
     aliases = set()        # names of kind "alias"
-    section = None
-    kind = "unit"
     for path in paths:
         path = Path(path)
+        # @section and @kind do not carry over from one file to the next, so
+        # a file appended with --extra starts as plain units.
+        section = None
+        kind = "unit"
         for lineno, raw in enumerate(path.read_text().splitlines(), 1):
             line = raw.strip()
             if not line or line.startswith("#"):
@@ -127,6 +137,11 @@ def parse_sources(paths):
                 raise ValueError(f"{path}:{lineno}: invalid name {name!r}")
             if name in symbols:
                 raise ValueError(f"{path}:{lineno}: duplicate name {name!r}")
+            try:
+                ast.parse(expr, mode="eval")
+            except SyntaxError as err:
+                raise ValueError(
+                    f"{path}:{lineno}: not an arithmetic expression: {expr!r}") from err
             if kind != "alias":
                 used = {n.id for n in ast.walk(ast.parse(expr, mode="eval"))
                         if isinstance(n, ast.Name)}
@@ -137,7 +152,12 @@ def parse_sources(paths):
             else:
                 aliases.add(name)
             try:
-                value = _eval(ast.parse(expr, mode="eval"), symbols)
+                tree = ast.parse(expr, mode="eval")
+                for node in ast.walk(tree):
+                    if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow)
+                            and _int_exponent(node.right) is None):
+                        raise ValueError("'**' needs an integer literal exponent")
+                value = _eval(tree, symbols)
             except Exception as err:
                 raise ValueError(
                     f"{path}:{lineno}: cannot evaluate {expr!r}: {err}") from err
@@ -961,13 +981,251 @@ def emit_jsonnet(records, sources):
 
 
 # --------------------------------------------------------------------------
+# JavaScript module.
+#
+# One UMD file: a classic <script> defines the global `hepUnits`, CommonJS
+# `require()` returns the module object, and Node's ESM `import u from` gets
+# it as the default export.  A classic script also loads from file://, which
+# an ES module does not, so the browser demo works straight from disk.
+# --------------------------------------------------------------------------
+
+_JS_PARSE = r"""
+  // ----------------------------------------------------------------------
+  // parse(text, symbols) -- evaluate an arithmetic expression of numbers,
+  // units and constants in the system of units.
+  //
+  //   parse("1.5*cm")  parse("1.5 cm")  parse("9.8 m/s^2")  parse("2*pi")
+  //   parse("0.5*0.02")  parse("(1+2)*mm")  parse("s^-1")  parse("sqrt(2)*cm")
+  //
+  // Grammar (lowest to highest precedence):
+  //   expr    := term { ('+' | '-') term }
+  //   term    := unary { ('*' | '/' | <whitespace>) unary }
+  //   unary   := ('+' | '-') unary | power
+  //   power   := primary [ ('^' | '**') unary ]          (right-associative)
+  //   primary := number | name | name '(' expr {',' expr} ')' | '(' expr ')'
+  //
+  // Two operands side by side multiply ("1.5 cm" is 1.5*cm); '^' binds
+  // tighter than a sign ("-2^2" is -4).  Names are looked up first in
+  // `symbols` (a plain object or a Map, e.g. a GDML file's constants), then
+  // in TABLE.  Functions: sqrt sin cos tan asin acos atan exp log pow abs min
+  // max.  Errors throw an Error whose message starts "hep_units.parse:".
+  // ----------------------------------------------------------------------
+  const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+  const FUNCS = {
+    sqrt: [1, Math.sqrt], sin: [1, Math.sin], cos: [1, Math.cos],
+    tan: [1, Math.tan], asin: [1, Math.asin], acos: [1, Math.acos],
+    atan: [1, Math.atan], exp: [1, Math.exp], log: [1, Math.log],
+    abs: [1, Math.abs], pow: [2, Math.pow], min: [2, Math.min], max: [2, Math.max],
+  };
+
+  const isDigit = (c) => c >= "0" && c <= "9";
+  const isNameStart = (c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";
+  const isNameChar = (c) => isNameStart(c) || isDigit(c);
+  const isSpace = (c) => c === " " || c === "\t" || c === "\n" || c === "\r" || c === "\f" || c === "\v";
+
+  function parse(text, symbols) {
+    if (typeof text !== "string") {
+      throw new TypeError("hep_units.parse: expression must be a string");
+    }
+    const s = text;
+    const n = s.length;
+    let i = 0;
+
+    let extra;
+    if (symbols == null) {
+      extra = () => undefined;
+    } else if (symbols instanceof Map) {
+      extra = (name) => symbols.get(name);
+    } else {
+      extra = (name) => (hasOwn(symbols, name) ? symbols[name] : undefined);
+    }
+
+    const fail = (what) => {
+      throw new Error("hep_units.parse: " + what + " at column " + i + " of " + JSON.stringify(s));
+    };
+    const skip = () => { while (i < n && isSpace(s[i])) { ++i; } };
+    const at = (c) => { skip(); return s.startsWith(c, i); };
+    const atPower = () => at("^") || at("**");
+    const atOperand = () => {
+      skip();
+      if (i >= n) { return false; }
+      const c = s[i];
+      return isDigit(c) || c === "." || c === "(" || isNameStart(c);
+    };
+
+    function expr() {
+      let v = term();
+      for (;;) {
+        if (at("+")) { ++i; v += term(); }
+        else if (at("-")) { ++i; v -= term(); }
+        else { return v; }
+      }
+    }
+
+    function term() {
+      let v = unary();
+      for (;;) {
+        if (at("*") && !at("**")) { ++i; v *= unary(); }
+        else if (at("/")) { ++i; v /= unary(); }
+        else if (atOperand()) { v *= unary(); }
+        else { return v; }
+      }
+    }
+
+    function unary() {
+      if (at("+")) { ++i; return unary(); }
+      if (at("-")) { ++i; return -unary(); }
+      return power();
+    }
+
+    function power() {
+      const b = primary();
+      if (atPower()) {
+        i += s[i] === "^" ? 1 : 2;
+        return Math.pow(b, unary());
+      }
+      return b;
+    }
+
+    function number() {
+      const b = i;
+      while (i < n && isDigit(s[i])) { ++i; }
+      if (i < n && s[i] === ".") {
+        ++i;
+        while (i < n && isDigit(s[i])) { ++i; }
+      }
+      if (i < n && (s[i] === "e" || s[i] === "E")) {
+        let k = i + 1;
+        if (k < n && (s[k] === "+" || s[k] === "-")) { ++k; }
+        if (k < n && isDigit(s[k])) {
+          i = k;
+          while (i < n && isDigit(s[i])) { ++i; }
+        }
+      }
+      const t = s.slice(b, i);
+      if (t === ".") { fail("bad number"); }
+      return Number(t);
+    }
+
+    function primary() {
+      skip();
+      if (i >= n) { fail("missing operand"); }
+      const c = s[i];
+      if (c === "(") {
+        ++i;
+        const v = expr();
+        if (!at(")")) { fail("missing ')'"); }
+        ++i;
+        return v;
+      }
+      if (isDigit(c) || c === ".") { return number(); }
+      if (isNameStart(c)) {
+        const b = i;
+        while (i < n && isNameChar(s[i])) { ++i; }
+        const name = s.slice(b, i);
+        if (at("(")) {
+          ++i;
+          const args = [expr()];
+          while (at(",")) { ++i; args.push(expr()); }
+          if (!at(")")) { fail("missing ')'"); }
+          ++i;
+          if (!hasOwn(FUNCS, name)) { fail("unknown function '" + name + "'"); }
+          const [nargs, fn] = FUNCS[name];
+          if (args.length !== nargs) { fail(name + "() takes " + nargs + " argument(s)"); }
+          return fn(...args);
+        }
+        const v = extra(name);
+        if (v !== undefined) { return Number(v); }
+        if (hasOwn(TABLE, name)) { return TABLE[name]; }
+        fail("unknown unit '" + name + "'");
+      }
+      fail("unexpected '" + c + "'");
+    }
+
+    skip();
+    if (i >= n) { fail("empty expression"); }
+    const v = expr();
+    skip();
+    if (i < n) { fail("unexpected '" + s[i] + "'"); }
+    return v;
+  }
+"""
+
+
+def _js_number(tok):
+    """Normalise a C/Python numeric literal token to valid strict-mode JS.
+
+    `1.`, `.5` and `1.e-6` are already valid JavaScript; only a leading zero
+    (`007`, a legacy octal literal) is not.
+    """
+    m = re.match(r"^0+(?=\d)", tok)
+    return tok[m.end():] if m else tok
+
+
+def emit_js(records, sources):
+    out = []
+    out.extend(_header_lines(sources, "// "))
+    out.append("//")
+    out.append("// hep-units for JavaScript (UMD: browser global, CommonJS, Node ESM).")
+    out.append("//")
+    out.append("//   Browser:   <script src=\"hep-units.js\"></script>  -> window.hepUnits")
+    out.append("//   CommonJS:  const u = require(\"./hep-units.js\");")
+    out.append("//   Node ESM:  import u from \"./hep-units.js\";")
+    out.append("//   Deno, browser modules:  import \"./hep-units.js\"; const u = globalThis.hepUnits;")
+    out.append("//")
+    out.append("//   const len = 1.5 * u.cm;                // import a number into the system")
+    out.append("//   console.log(len / u.mm, \"mm\");         // export it to print")
+    out.append("//   const v = u.parse(\"1.6 mm/us\");        // import from text")
+    out.append("(function (root, factory) {")
+    out.append("  if (typeof module === \"object\" && module.exports) {")
+    out.append("    module.exports = factory();")
+    out.append("  } else if (typeof define === \"function\" && define.amd) {")
+    out.append("    define([], factory);")
+    out.append("  } else {")
+    out.append("    root.hepUnits = factory();")
+    out.append("  }")
+    out.append("}(typeof globalThis !== \"undefined\" ? globalThis : this, function () {")
+    out.append("  \"use strict\";")
+    out.append("")
+    for (section, kind), syms in _grouped(records):
+        label = section or ""
+        tag = _KIND_TAG[kind]
+        out.append(f"  // ---- {label}{tag} ----")
+        for sym in syms:
+            rhs = render_expr(sym.expr, lambda n: n)
+            rhs = re.sub(r"(?<![\w.])\d[\d.]*(?:[eE][+-]?\d+)?",
+                         lambda m: _js_number(m.group(0)), rhs)
+            out.append(f"  const {sym.name} = {rhs};  // = {_num(sym.value)}")
+        out.append("")
+    out.append("  // Names of every symbol (units, constants and aliases), in order.")
+    out.append("  const NAMES = Object.freeze([")
+    for s in records:
+        out.append(f'    "{s.name}",')
+    out.append("  ]);")
+    out.append("")
+    out.append("  // Lookup table { name: value } of every named symbol.")
+    out.append("  const TABLE = Object.freeze({")
+    for s in records:
+        out.append(f"    {s.name},")
+    out.append("  });")
+    out.append(_JS_PARSE.rstrip("\n"))
+    out.append("")
+    out.append("  // The module: every symbol as a property, plus NAMES, TABLE and parse.")
+    out.append("  return Object.freeze(Object.assign({}, TABLE, { NAMES, TABLE, parse }));")
+    out.append("}));")
+    out.append("")
+    return "\n".join(out)
+
+
+# --------------------------------------------------------------------------
 # Driver.
 # --------------------------------------------------------------------------
 
 def main(argv=None):
     here = Path(__file__).resolve().parent
     root = here.parent
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[1],
+    ap = argparse.ArgumentParser(description=" ".join(__doc__.strip().split("\n\n")[0].split()),
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("sources", nargs="*", type=Path,
                     default=[root / "units" / "clhep.units",
@@ -978,16 +1236,31 @@ def main(argv=None):
     ap.add_argument("--py", type=Path, default=root / "src" / "hep_units" / "__init__.py")
     ap.add_argument("--jsonnet", type=Path,
                     default=root / "jsonnet" / "hep" / "units.libsonnet")
+    ap.add_argument("--js", type=Path, default=root / "js" / "hep-units.js")
+    ap.add_argument("-x", "--extra", type=Path, action="append", default=[],
+                    metavar="FILE",
+                    help="a .units file consumed after the sources; repeat to "
+                    "extend the default system without restating it")
+    ap.add_argument("--only", action="append", default=[],
+                    choices=["hpp", "py", "jsonnet", "js"],
+                    help="write only this product; repeatable (default: all)")
     args = ap.parse_args(argv)
 
-    records = parse_sources(args.sources)
-    names = [p.name for p in args.sources]
+    sources = list(args.sources) + list(args.extra)
+    try:
+        records = parse_sources(sources)
+    except (OSError, ValueError, SyntaxError) as err:
+        raise SystemExit(f"generate.py: error: {err}")
+    names = [p.name for p in sources]
 
-    products = {
-        args.hpp: emit_cpp(records, names),
-        args.py: emit_python(records, names),
-        args.jsonnet: emit_jsonnet(records, names),
+    emitters = {
+        "hpp": (args.hpp, emit_cpp),
+        "py": (args.py, emit_python),
+        "jsonnet": (args.jsonnet, emit_jsonnet),
+        "js": (args.js, emit_js),
     }
+    wanted = args.only or list(emitters)
+    products = {emitters[k][0]: emitters[k][1](records, names) for k in wanted}
     for path, text in products.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)

@@ -1,7 +1,7 @@
 # hep-units
 
 The CLHEP **HEP System of Units** — plus local additions (units not in CLHEP)
-and constants of nature — provided as three interchangeable products generated
+and constants of nature — provided as four interchangeable products generated
 from a single source of truth:
 
 | Product | File | Consume as |
@@ -9,15 +9,23 @@ from a single source of truth:
 | C++ header | `include/hep/units.hpp` | `#include "hep/units.hpp"` → `hep::units::cm`, `hep::units::parse(...)` |
 | Python module | `src/hep_units/__init__.py` | `import hep_units as u` → `u.cm`, `u.parse(...)` |
 | Jsonnet library | `jsonnet/hep/units.libsonnet` | `local u = import 'hep/units.libsonnet';` → `u.cm`, `u.parse(...)` |
+| JavaScript module | `js/hep-units.js` | `<script src="hep-units.js">` → `hepUnits.cm`; `require("./hep-units.js")` → `u.parse(...)` |
 
-All three carry identical numeric values (IEEE-754 doubles, verified
-bit-for-bit) and the same set of 166 named symbols, so a length written as
-`1.5*cm` means the same thing in C++, Python and Jsonnet.
+All four carry identical numeric values (IEEE-754 doubles, verified
+bit-for-bit) and the same set of 229 named symbols (166 units and constants,
+63 aliases), so a length written as `1.5*cm` means the same thing in C++,
+Python, Jsonnet and JavaScript.
+
+**Documentation** is in [`docs/`](docs/README.md): the philosophy (multiply to
+import, divide to export, and the units firewall), a guide per language, the
+`parse()` language, and the `.units` files.  `python docs/build.py` turns it
+into a small web site, including a [demo](docs/demo.html) of `parse()` that
+runs in the browser.
 
 Each product keeps the **structure** of every definition rather than a
 flattened number — e.g. the C++ header has `inline constexpr double cm2 =
 cm*cm;`, Python has `cm2 = cm*cm`, Jsonnet has `cm2:: self.cm * self.cm` — with
-the resolved value in a trailing comment. Because the three languages share
+the resolved value in a trailing comment. Because the four languages share
 operator precedence, left-associativity and `double` semantics, this is exactly
 equivalent to the flattened form while letting a reader see how each unit is
 built up.
@@ -71,7 +79,11 @@ meter       = 1000.*millimeter   # trailing comments after '#' are allowed
   the nested namespace `hep::units::aliases` (`hep::units::aliases::V`), so
   `using namespace hep::units` does not import `A C F H K N S T V W`; in
   Python they are module attributes but not in `__all__`; in Jsonnet they are
-  hidden fields like every unit. Only aliases may refer to aliases.
+  hidden fields like every unit; in JavaScript they are properties like every
+  unit. Only aliases may refer to aliases.
+- `@section` and `@kind` reset at the start of each file.  More files can be
+  appended to the default ones with `generate.py --extra FILE`; see
+  [docs/units-files.md](docs/units-files.md).
 
 ## The `parse()` function
 
@@ -104,18 +116,20 @@ primary := number | name | name '(' expr {',' expr} ')' | '(' expr ')'
 - Two operands side by side multiply, so `"1.5 cm"` is `1.5*cm` and
   `"9.8 m/s^2"` is `9.8*m/(s^2)`.  `^` binds tighter than a sign:
   `"-2^2"` is -4; `"2^3^2"` is 512.
-- Numbers are C-style: `1`, `1.`, `.5`, `1.5e-3`, `1.E3` (in all three
+- Numbers are C-style: `1`, `1.`, `.5`, `1.5e-3`, `1.E3` (in all four
   products; Jsonnet no longer needs JSON-only literals).
 - Names are looked up first in the caller's symbols, then in the table.  This
   is how a GDML reader evaluates attributes that use its file's
   `<constant>`s.  C++: `parse(text, std::unordered_map<std::string,double>)`
   or `parse_with(text, lookup)` where `lookup(std::string_view)` returns a
   `const double*` (nullptr when unknown); Python: `parse(text, mapping)`;
-  Jsonnet: `parse(text, object)`.
+  Jsonnet: `parse(text, object)`; JavaScript: `parse(text, object or Map)`.
 - Functions: `sqrt sin cos tan asin acos atan exp log pow abs min max`.
 - Errors (unknown name or function, bad syntax, empty text) throw
-  `std::invalid_argument` / raise `ValueError` / are Jsonnet errors.
-- Arithmetic gives bit-identical results in C++, Python and Jsonnet
+  `std::invalid_argument` / raise `ValueError` / are Jsonnet errors / throw
+  a JavaScript `Error`.
+- Arithmetic gives bit-identical results in C++, Python, Jsonnet and
+  JavaScript
   (`test/test_parity.py` checks every case of `test/parse-cases.txt`).
   Functions use each language's math library and may differ in the last bit
   (seen: `acos(0.3)` in go-jsonnet).
@@ -138,12 +152,13 @@ cmake --build build --target regenerate
 
 ## Building and installing
 
-### CMake (C++ header + Python file + Jsonnet library)
+### CMake (C++ header + Python file + Jsonnet library + JavaScript file)
 
 ```bash
 cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/some/prefix
 cmake --build build
-ctest --test-dir build          # runs the C++, Python and Jsonnet checks
+ctest --test-dir build          # runs the C++, Python, Jsonnet and JavaScript checks
+cmake --build build --target docs   # optional: HTML docs in build/docs
 cmake --install build
 ```
 
@@ -153,6 +168,7 @@ Installs:
 <prefix>/include/hep/units.hpp
 <prefix>/python/hep_units/__init__.py          # add <prefix>/python to PYTHONPATH
 <prefix>/share/jsonnet/hep/units.libsonnet     # add <prefix>/share/jsonnet to -J path
+<prefix>/share/javascript/hep-units.js
 <prefix>/lib/cmake/hep_units/…                 # find_package(hep_units)
 ```
 
@@ -172,6 +188,15 @@ pip install .          # or: uv tool install -e .
 python -c "import hep_units as u; print(u.parse('1.6 mm/us'))"
 ```
 
+### package.json (JavaScript module only)
+
+The source tree is also an npm package whose `main` is `js/hep-units.js`:
+
+```bash
+npm install /path/to/hep-units
+node -e 'console.log(require("hep-units").parse("1.6 mm/us"))'
+```
+
 ## Layout
 
 ```
@@ -182,11 +207,15 @@ generate/generate.py          the source-code generator (developer tool)
 include/hep/units.hpp         GENERATED C++ header
 src/hep_units/__init__.py     GENERATED Python module
 jsonnet/hep/units.libsonnet   GENERATED Jsonnet library
-CMakeLists.txt                 build/install for all three products
-pyproject.toml                 parallel Python install
-test/                          C++, Python and Jsonnet checks (ctest + pytest);
-                               parse-cases.txt is shared, test_parity.py
-                               compares the three products
+js/hep-units.js               GENERATED JavaScript module (UMD)
+docs/                         documentation (Markdown); build.py makes HTML,
+                              demo.html runs parse() in a browser
+CMakeLists.txt                build/install for all four products
+pyproject.toml                parallel Python install
+package.json                  parallel JavaScript (npm) install
+test/                         C++, Python, Jsonnet and JavaScript checks
+                              (ctest + pytest); parse-cases.txt is shared,
+                              test_parity.py compares the four products
 ```
 
 ## License
